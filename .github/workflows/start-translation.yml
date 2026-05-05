@@ -228,7 +228,7 @@ jobs:
             printf '%s\n' "${result[@]}"
           }
 
-          # POST to Weblate add-or-update endpoint (fire-and-forget, 5 s timeout).
+          # POST to Weblate add-or-update (async: server returns 202 + task_id quickly).
           # Payload: {organization, add_or_update: {lang_code: [subs...]}, version, extensions}
           trigger_weblate() {
             local weblate_url="$1" weblate_token="$2" libs_ref="$3" exts_json="$4"
@@ -261,20 +261,40 @@ jobs:
             echo "  add_or_update:" >&2
             echo "$add_or_update_json" | jq -r 'to_entries[] | "    \(.key): \(.value | join(", "))"' >&2
 
-            curl_exit=0
-            curl -s -o /dev/null -m 5 -X POST \
+            local resp http_code curl_exit=0
+            resp=$(mktemp)
+            http_code=$(curl -sS -o "$resp" -w "%{http_code}" --max-time 120 -X POST \
               -H "Authorization: Token $weblate_token" \
               -H "Content-Type: application/json" \
               -H "User-Agent: BoostDocsSync/1.0" \
               -d "$payload" \
               "${weblate_url%/}/boost-endpoint/add-or-update/" \
-              || curl_exit=$?
-            # Exit 28 = timeout; treat as success since this is fire-and-forget.
-            if [[ $curl_exit -eq 0 || $curl_exit -eq 28 ]]; then
-              echo "Weblate add-or-update triggered." >&2
-            else
+            ) || curl_exit=$?
+
+            if [[ $curl_exit -ne 0 ]]; then
               echo "Weblate trigger failed (curl exit $curl_exit)." >&2
+              cat "$resp" >&2 || true
+              rm -f "$resp"
+              return 1
             fi
+
+            case "$http_code" in
+              202)
+                echo "Weblate add-or-update accepted (HTTP 202, async)." >&2
+                jq . "$resp" >&2 || cat "$resp" >&2
+                ;;
+              200)
+                echo "Weblate returned HTTP 200 (sync server); treating as success." >&2
+                cat "$resp" >&2 || true
+                ;;
+              *)
+                echo "Weblate returned HTTP $http_code (expected 202)." >&2
+                cat "$resp" >&2 || true
+                rm -f "$resp"
+                return 1
+                ;;
+            esac
+            rm -f "$resp"
           }
 
           # ── Main ─────────────────────────────────────────────────────────────
