@@ -103,4 +103,10 @@ See [`assets/README.md`](.github/workflows/assets/README.md) for details.
 |---|---|---|
 | `LANG_CODES` | `add-submodules`, `start-translation` | Optional. Default comma-separated language codes (e.g. `zh_Hans,ja`). |
 
+## License
+
+This repository is distributed under the
+[Boost Software License, Version 1.0](https://www.boost.org/LICENSE_1_0.txt)
+(SPDX: `BSL-1.0`).
+
 ---
