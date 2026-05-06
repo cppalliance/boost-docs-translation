@@ -110,7 +110,7 @@ jobs:
             fi
 
             doc_paths=$(get_doc_paths "$sub_name" "$LIBS_REF") || {
-              echo "  No libraries.json, skipping." >&2; return 1
+              echo "  No libraries.json." >&2; return 2
             }
             [[ -z "$doc_paths" ]] && { echo "  No doc paths, skipping." >&2; return 1; }
 

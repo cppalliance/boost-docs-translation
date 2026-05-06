@@ -68,8 +68,8 @@ jobs:
             while IFS= read -r sub_path; do
               [[ -z "$sub_path" ]] && continue
               if [[ ! -d "$sub_path" ]]; then
-                echo "  Error: submodule path missing after init: $sub_path" >&2
-                exit 1
+                echo "  Warning: submodule path missing after init, skipping: $sub_path" >&2
+                continue
               fi
               git config "submodule.${sub_path}.branch" "$branch"
               git -C "$sub_path" fetch origin \
