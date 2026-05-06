@@ -1,14 +1,23 @@
 # boost-docs-translation
 
-Mirrors Boost library documentation repositories into the CppDigest org, maintains
-submodule links on `master` and `local-{lang_code}` branches, and keeps local-branch
-pointers up to date on a daily schedule.
+Super-repository for Boost library documentation translations: it holds `libs/*`
+submodules that point at per-library mirrors, keeps **`master`** and
+**`local-{lang_code}`** branches aligned with upstream **`boostorg`** sources, and
+notifies a Weblate instance when components change. A daily workflow advances
+submodule pointers on every **`local-*`** branch to match each library repo’s
+corresponding **`local-*`** tip.
+
+The GitHub org used for those library mirrors defaults to **this repository’s
+org**; set repository variable **`SUBMODULES_ORG`** (e.g. `CppDigest`) to use a
+different org.
+
+For system context, branch model, and data flows, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
 ---
 
 ## Workflows
 
-### `add-submodules.yml` — Add new submodules
+### `add-submodules.yml` — Create library mirrors and register submodules
 
 **Trigger:** `repository_dispatch` with `event_type: add-submodules`
 
@@ -16,24 +25,27 @@ pointers up to date on a daily schedule.
 {"event_type": "add-submodules", "client_payload": {"version": "boost-1.90.0"}}
 ```
 
-For each Boost library submodule:
-1. Skips if the repo already exists in the CppDigest org.
-2. Fetches `meta/libraries.json` to determine doc paths, clones the `boostorg` repo at
-   the given ref, and prunes to doc folders only.
-3. Creates `CppDigest/<submodule>`, pushes doc content to `master`, creates
-   `local-{lang_code}` branches for each language, and installs `create-tag.yml`
-   (from `assets/`) into the new repo.
-4. Updates submodule links in this repo (`libs/`) on `master` and each `local-{lang_code}` branch.
+For each Boost library name in the resolved list:
+
+1. Skips if **`{MODULE_ORG}/{submodule}`** already exists (`MODULE_ORG` is
+   **`SUBMODULES_ORG`** if set, otherwise the translations repo’s org).
+2. Fetches **`meta/libraries.json`** from **`boostorg/{submodule}`** to determine doc
+   paths, clones that repo at the given ref, and prunes to doc folders only.
+3. Creates **`{MODULE_ORG}/{submodule}`**, pushes doc content to **`master`**, creates
+   **`local-{lang_code}`** branches for each configured language, and copies
+   **`create-tag.yml`** from **`.github/workflows/assets/`** into the new repo.
+4. Updates submodule links in this repo under **`libs/`** on **`master`** and each
+   **`local-{lang_code}`** branch.
 
 | `client_payload` field | Required | Description |
 |---|---|---|
 | `version` | no | Boost ref (e.g. `boost-1.90.0`). Defaults to `develop`. |
-| `submodules` | no | List-like string (e.g. `[algorithm, system]`). If omitted, reads from `.gitmodules`. |
-| `lang_codes` | no | Comma-separated language codes (e.g. `zh_Hans,ja`). Defaults to `vars.LANG_CODES`. |
+| `submodules` | no | List-like string (e.g. `[algorithm, system]`). If omitted, submodule names are taken from **`.gitmodules` on `boostorg/boost`** at **`version`** (only `libs/` paths). |
+| `lang_codes` | no | Comma-separated language codes (e.g. `zh_Hans,ja`). Defaults to **`vars.LANG_CODES`**; the workflow fails if neither this field nor **`LANG_CODES`** is set. |
 
 ---
 
-### `start-translation.yml` — Sync existing submodules
+### `start-translation.yml` — Sync existing mirrors and notify Weblate
 
 **Trigger:** `repository_dispatch` with `event_type: start-translation`
 
@@ -41,25 +53,33 @@ For each Boost library submodule:
 {"event_type": "start-translation", "client_payload": {"version": "boost-1.90.0"}}
 ```
 
-Reads the submodule list from `.gitmodules` of this repo (only `libs/` entries).
-For each lang code and each submodule:
-1. Ensures this repo has a `local-{lang_code}` branch.
-2. Syncs `CppDigest/{lib}` master from the upstream `boostorg` repo.
-3. Manages the `local-{lang_code}` branch in the lib repo: creates it if missing,
-   or merges master into it if no open translation PR exists; skips if a PR is open.
-4. Updates submodule pointers on `master` and each `local-{lang_code}` branch.
-5. POSTs to Weblate with an `add_or_update` map of `{lang_code: [submodules, ...]}`.
-   Skipped if all entries are empty (no submodules were updated).
+Reads the submodule list from **this repo’s `.gitmodules`** on **`master`** (only
+**`libs/`** entries). For each language and each submodule:
+
+1. Ensures this repo has a **`local-{lang_code}`** branch.
+2. Syncs **`{MODULE_ORG}/{lib}` `master`** from the upstream **`boostorg`** repo
+   (same prune rules as **`add-submodules`**).
+3. In the library repo: creates **`local-{lang_code}`** if missing, or merges
+   **`master`** into it when there is **no** open PR into **`local-{lang_code}`**
+   whose head branch starts with **`translation-{lang_code}-`**; otherwise skips
+   that lib for that language so in-flight Weblate work is not overwritten.
+4. Updates submodule pointers here on **`master`** and each **`local-{lang_code}`**
+   branch ( **`local-*`** updates are force-pushed when finalizing).
+5. **POST**s JSON to **`{WEBLATE_URL}/boost-endpoint/add-or-update/`** with
+   **`organization`**, **`version`**, optional **`extensions`**, and
+   **`add_or_update`**: `{lang_code: [submodule names, ...]}` for libs that were
+   actually updated for that language. Omits the call if the map would be empty.
+   A typical server response is **HTTP 202** (async); **200** is also accepted.
 
 | `client_payload` field | Required | Description |
 |---|---|---|
 | `version` | no | Boost ref (e.g. `boost-1.90.0`). Defaults to `develop`. |
-| `lang_codes` | no | Comma-separated language codes (e.g. `zh_Hans,ja`). Defaults to `vars.LANG_CODES`. |
-| `extensions` | no | File extensions for Weblate (e.g. `[.adoc, .md]`). Default: empty (all supported). |
+| `lang_codes` | no | Comma-separated language codes (e.g. `zh_Hans,ja`). Defaults to **`vars.LANG_CODES`**; the workflow fails if neither this field nor **`LANG_CODES`** is set. |
+| `extensions` | no | File extensions for Weblate (e.g. `[.adoc, .md]`). Default: empty (no filter in the payload). |
 
 ---
 
-### `sync-translation.yml` — Sync local-branch pointers
+### `sync-translation.yml` — Advance submodule pointers on `local-*` branches
 
 **Trigger:** `repository_dispatch` with `event_type: sync-translation`, or daily schedule (`0 0 * * *`)
 
@@ -67,9 +87,10 @@ For each lang code and each submodule:
 {"event_type": "sync-translation"}
 ```
 
-Discovers all remote `local-*` branches in this repo, then for each one:
-checks it out with submodules, advances every submodule pointer to the tip of that
-submodule's own `local-*` branch, commits, and force-pushes.
+Discovers all remote **`local-*`** branches in this repo, then for each one: checks
+it out with submodules, sets each submodule’s tracking branch to that name,
+runs **`git submodule update --remote`**, commits if pointers changed, and
+**force-pushes** the branch.
 
 No `client_payload` fields.
 
@@ -77,15 +98,38 @@ No `client_payload` fields.
 
 ## Assets
 
-### `.github/workflows/assets/create-tag.yml`
+Shared workflow snippets live under **`.github/workflows/assets/`**.
 
-A workflow template copied into each CppDigest lib repo by `add-submodules.yml` and
-`start-translation.yml`. Triggers when a Weblate translation PR
-(`translation-{lang_code}-{version}` → `local-{lang_code}`) is merged, and creates a
-versioned tag of the form `{version}-{repo}-{lang_code}`
-(e.g. `boost-1.90.0-algorithm-zh_Hans`). Skipped if the tag already exists.
+### `create-tag.yml`
 
-See [`assets/README.md`](.github/workflows/assets/README.md) for details.
+Copied into each library mirror repo when **`local-{lang_code}`** is created.
+When a Weblate PR (**`translation-{lang_code}-{version}`** → **`local-{lang_code}`**)
+is merged, it creates tag **`{version}-{repo}-{lang_code}`** if it does not already
+exist.
+
+See [`.github/workflows/assets/README.md`](.github/workflows/assets/README.md) for
+branch and tag naming details.
+
+### `env.sh` and `lib.sh`
+
+Sourced by **`add-submodules`** and **`start-translation`**: org/repo names, clone
+and prune helpers, translations-repo branch setup, submodule pointer updates, and
+list parsing.
+
+---
+
+## Scripts (local `repository_dispatch`)
+
+From a clone of this repo:
+
+- **`scripts/trigger-add-submodules.sh`** — fires **`add-submodules`**.
+- **`scripts/trigger-start-translation.sh`** — fires **`start-translation`** (optional
+  **`--version`**, **`--lang-codes`**, **`--extensions`**).
+
+Copy **`.env.example`** to **`.env`** and set **`GH_TOKEN`** (or **`GITHUB_TOKEN`**)
+with permission to call **`POST /repos/{owner}/{repo}/dispatches`** on the target
+repo. The workflows still use GitHub **secrets** and **variables** on the server as
+documented below.
 
 ---
 
@@ -93,14 +137,15 @@ See [`assets/README.md`](.github/workflows/assets/README.md) for details.
 
 | Secret | Used by | Description |
 |---|---|---|
-| `SYNC_TOKEN` | all workflows | PAT with `repo` scope (and org repo-create permission for `add-submodules`). |
-| `WEBLATE_URL` | `start-translation` | Weblate instance URL. |
-| `WEBLATE_TOKEN` | `start-translation` | Weblate API token. |
+| `SYNC_TOKEN` | all workflows | PAT with **`repo`** scope; **`add-submodules`** also needs permission to create org repositories when creating new mirrors. |
+| `WEBLATE_URL` | `start-translation` | Base URL of the Weblate instance (the workflow appends **`boost-endpoint/add-or-update/`**). |
+| `WEBLATE_TOKEN` | `start-translation` | API token for that endpoint. |
 
 ## Repository variables
 
 | Variable | Used by | Description |
 |---|---|---|
-| `LANG_CODES` | `add-submodules`, `start-translation` | Optional. Default comma-separated language codes (e.g. `zh_Hans,ja`). |
+| `LANG_CODES` | `add-submodules`, `start-translation` | Default language codes when **`client_payload.lang_codes`** is omitted (comma- or bracket-list, e.g. `zh_Hans,ja`). Must be set here or passed in the dispatch payload. |
+| `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for **`boostorg`** mirror repos (e.g. `CppDigest`). If unset, the org is the same as this repository’s owner. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
 
 ---
