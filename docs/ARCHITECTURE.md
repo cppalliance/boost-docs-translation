@@ -15,8 +15,7 @@ branches, and automation that does not clobber in-progress translator submission
 **Goals.**
 
 - **Mirror** each relevant library’s documentation into a dedicated GitHub repo under
-  a configurable org (**`MODULE_ORG`**, from **`SUBMODULES_ORG`** or the translations
-  repo owner).
+  a configurable org (**`MODULE_ORG`**, from **`SUBMODULES_ORG`**).
 - **Super-repo** (**this repository**): one checkout that pins exact commits of every
   mirrored lib via **`libs/<name>`** submodules on **`master`** and on
   **`local-{lang_code}`** branches.
@@ -165,10 +164,6 @@ share one credential. **`WEBLATE_TOKEN`** is only used for the outbound HTTP cal
 - **`start-translation`** skips mirror **`master`** merge into **`local-*`** when a
   Weblate PR is open, reducing race risk with translators.
 - **`create-tag`** skips if the derived tag already exists.
-
-**Concurrency.** Workflows are single-job; long runs process submodules sequentially.
-Parallel dispatches could contend on the same mirror or super-repo branch; operations
-are git-based last-write-wins unless GitHub rejects non-fast-forward pushes.
 
 **Observability.** Shell steps echo progress to Actions logs; Weblate response bodies
 are printed for **`start-translation`** on success or failure paths where implemented.
