@@ -8,10 +8,10 @@ submodule pointers on every **`local-*`** branch to match each library repo’s
 corresponding **`local-*`** tip.
 
 The GitHub org used for those library mirrors defaults to **this repository’s
-org**; set repository variable **`SUBMODULES_ORG`** (e.g. `CppDigest`) to use a
+org**; set repository variable **`SUBMODULES_ORG`** to use a
 different org.
 
-For system context, branch model, and data flows, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+For system context, branch model, and data flows, see **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 

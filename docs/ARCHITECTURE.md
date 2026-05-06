@@ -2,7 +2,7 @@
 
 This document describes **why** the system is shaped the way it is, **how** the main
 pieces relate, and **which** concerns cut across workflows. For triggers, secrets,
-and copy-paste examples, see [README.md](README.md).
+and copy-paste examples, see [README.md](../README.md).
 
 ---
 
