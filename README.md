@@ -15,6 +15,12 @@ For system context, branch model, and data flows, see **[ARCHITECTURE.md](docs/A
 
 ---
 
+## Integration contracts
+
+HTTP surfaces are described in **[`docs/endpoint-contract.md`](docs/endpoint-contract.md)**.
+
+---
+
 ## Workflows
 
 ### `add-submodules.yml` — Create library mirrors and register submodules
