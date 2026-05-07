@@ -8,8 +8,7 @@ pointers up to date on a daily schedule.
 
 ## Integration contracts
 
-HTTP surfaces (GitHub `repository_dispatch`, Weblate `boost-endpoint`, timeouts, and
-gaps) are described in **[`docs/endpoint-contract.md`](docs/endpoint-contract.md)**.
+HTTP surfaces are described in **[`docs/endpoint-contract.md`](docs/endpoint-contract.md)**.
 
 ---
 
