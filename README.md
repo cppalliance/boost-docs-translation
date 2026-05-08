@@ -152,7 +152,7 @@ documented below.
 | Variable | Used by | Description |
 |---|---|---|
 | `LANG_CODES` | `add-submodules`, `start-translation` | Default language codes when **`client_payload.lang_codes`** is omitted (comma- or bracket-list, e.g. `zh_Hans,ja`). Must be set here or passed in the dispatch payload. |
-| `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for **`boostorg`** mirror repos (e.g. `CppDigest`). If unset, the org is the same as this repository’s owner. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
+| `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for **`boostorg`** mirror repos (e.g. `cppalliance`). If unset, the org is the same as this repository’s owner. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
 
 ## License
 

@@ -9,8 +9,8 @@
 #
 # For each lang_code in LANG_CODES:
 #   1. Ensures TRANSLATIONS_REPO has a "local-{lang_code}" branch.
-#   2. For each submodule: syncs CppDigest master, then handles "local-{lang_code}" in the
-#      CppDigest lib repo (creates if missing, or merges master if no open translation PR).
+#   2. For each submodule: syncs mirror master, then handles "local-{lang_code}" in the
+#      library mirror repo (creates if missing, or merges master if no open translation PR).
 #   3. Updates TRANSLATIONS_REPO master and each "local-{lang_code}" submodule pointer.
 #   4. POSTs to Weblate with add_or_update map: {lang_code: [submodules, ...]}.
 #
@@ -21,7 +21,7 @@
 #
 # Required secrets: SYNC_TOKEN, WEBLATE_URL, WEBLATE_TOKEN.
 #   SYNC_TOKEN: push/PR access in MODULE_ORG. Repository variable SUBMODULES_ORG: org for
-#   library repos (e.g. CppDigest). If unset, MODULE_ORG is this repo's org.
+#   library repos (e.g. cppalliance). If unset, MODULE_ORG is this repo's org.
 # Optional: LANG_CODES (used when lang_codes not in client_payload).
 
 name: Start translation
@@ -138,7 +138,7 @@ jobs:
             git -C "$repo_dir" push origin "${local_br}:${local_br}" || return 2
           }
 
-          # Create local-{lang_code} in a CppDigest lib repo from master, with create-tag.yml.
+          # Create local-{lang_code} in a library mirror repo from master, with create-tag.yml.
           ensure_local_branch_in_repo() {
             local dest_repo="$1" sub_name="$2" lang_code="$3"
             local local_br="local-${lang_code}"
@@ -154,7 +154,7 @@ jobs:
             echo "  Created branch $local_br." >&2
           }
 
-          # Handle local-{lang_code} branch in a CppDigest lib repo after master is synced.
+          # Handle local-{lang_code} branch in a library mirror repo after master is synced.
           # Returns 0 if submodule should be added to add_or_update[lang_code]; 1 if skipped (open PR); 2 on git failure.
           process_local_branch() {
             local dest_repo="$1" sub_name="$2" lang_code="$3"
