@@ -6,3 +6,7 @@
 	path = libs/json
 	url = https://github.com/CppDigest/json.git
 	branch = local-zh_Hans
+[submodule "libs/beast"]
+	path = libs/beast
+	url = https://github.com/CppDigest/beast.git
+	branch = local-zh_Hans
