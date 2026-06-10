@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Shared shell library for add-submodules and start-translation workflows.
 # Source this file after setting: ORG, MODULE_ORG, BOT_NAME, BOT_EMAIL, BOOST_ORG, MASTER_BRANCH,
 # TRANSLATIONS_REPO, TRANS_DIR, GITHUB_WORKSPACE, UPDATES (array).
@@ -69,7 +70,7 @@ prune_to_doc_only() {
   for p in "${keep_paths[@]}"; do
     local first="${p%%/*}"
     [[ "$first" == "$p" ]] && continue  # depth 1 ("doc"): keep entire dir
-    local rest_first="${p#${first}/}"; rest_first="${rest_first%%/*}"
+    local rest_first="${p#"${first}"/}"; rest_first="${rest_first%%/*}"
     for f in "$dir/$first"/*; do [[ -f "$f" ]] && rm -f "$f"; done
     while IFS= read -r item; do
       local name="${item##*/}"
@@ -172,6 +173,8 @@ sync_translations_branch() {
 
 finalize_translations_repo() {
   local dir="$1" libs_ref="$2"
+  shift 2
+  local lang_codes_arr=("$@")
   [[ ${#UPDATES[@]} -eq 0 ]] && return
   git -C "$dir" fetch origin
   sync_translations_branch "$dir" "$MASTER_BRANCH" "$libs_ref"

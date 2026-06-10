@@ -97,6 +97,13 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
+          # LIBS_REF: workflow env
+          # shellcheck disable=SC2153
+          libs_ref="${LIBS_REF:?}"
+          # BOOST_ORG: env.sh
+          # shellcheck disable=SC2153
+          boost_org="${BOOST_ORG:?}"
+
           ORG_WORK="$WORK_DIR/$MODULE_ORG"
           mkdir -p "$ORG_WORK"
 
@@ -182,7 +189,7 @@ jobs:
               return 2
             fi
 
-            doc_paths=$(get_doc_paths "$sub_name" "$LIBS_REF") || {
+            doc_paths=$(get_doc_paths "$sub_name" "$libs_ref") || {
               META_MISSING+=("$sub_name")
               echo "  No libraries.json." >&2; return 2
             }
@@ -192,8 +199,8 @@ jobs:
             }
 
             local sub_clone="$BOOST_WORK/$sub_name"
-            clone_repo "https://github.com/${BOOST_ORG}/${sub_name}.git" \
-              "$LIBS_REF" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
+            clone_repo "https://github.com/${boost_org}/${sub_name}.git" \
+              "$libs_ref" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
 
             local -a paths_arr
             mapfile -t paths_arr <<< "$doc_paths"
@@ -205,7 +212,7 @@ jobs:
               echo "  clone_repo failed." >&2; return 2
             }
 
-            sync_repo_master "$dest_repo" "$sub_clone" "$LIBS_REF" || return 2
+            sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref" || return 2
 
             local any_added=0
             for lang_code in "${lang_codes_arr[@]}"; do
@@ -373,7 +380,7 @@ jobs:
 
           # ── Step 3: finalize TRANSLATIONS_REPO ───────────────────────────────
 
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF"
+          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}"
 
           # ── Step 4: POST to Weblate ───────────────────────────────────────────
 
