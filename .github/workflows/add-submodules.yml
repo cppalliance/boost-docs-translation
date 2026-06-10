@@ -71,9 +71,12 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
-          # LIBS_REF: workflow env; BOOST_ORG: env.sh. SC2153: shellcheck cannot see those sources.
+          # LIBS_REF: workflow env
           # shellcheck disable=SC2153
-          libs_ref="${LIBS_REF}" boost_org="${BOOST_ORG}"
+          libs_ref="${LIBS_REF:?}"
+          # BOOST_ORG: env.sh
+          # shellcheck disable=SC2153
+          boost_org="${BOOST_ORG:?}"
 
           # ── Organization repo helpers ────────────────────────────────────────
 
