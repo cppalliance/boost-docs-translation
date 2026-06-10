@@ -29,6 +29,23 @@ jobs:
         with:
           token: ${{ secrets.SYNC_TOKEN }}
 
+      - name: Validate language codes
+        env:
+          LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
+        run: |
+          set -euo pipefail
+          [[ -z "${LANG_CODES:-}" ]] && {
+            echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
+            exit 1
+          }
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
+          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
+            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
+          }
+          validate_lang_codes "${lang_codes_arr[@]}"
+
       - name: Add submodules
         shell: bash
         env:
@@ -141,6 +158,7 @@ jobs:
           [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
             echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
           }
+          validate_lang_codes "${lang_codes_arr[@]}"
           echo "Lang codes: ${lang_codes_arr[*]}" >&2
 
           # ── Step 1: ensure TRANSLATIONS_REPO has local-{lang_code} branches ──

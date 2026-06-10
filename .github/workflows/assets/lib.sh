@@ -193,3 +193,25 @@ parse_list() {
     [[ -n "$part" ]] && echo "$part"
   done
 }
+
+# Return 0 when $1 is a well-formed Weblate language code.
+is_valid_lang_code() {
+  local code="$1"
+  [[ -n "$code" ]] || return 1
+  # ISO 639-1/2/3 primary (2–3 letters) + optional BCP 47 subtags (_ or -).
+  # Rejects spaces, slashes, and other git-ref-hostile characters.
+  [[ "$code" =~ ^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})*$ ]]
+}
+
+# Exit 1 with a clear message if any argument is invalid.
+validate_lang_codes() {
+  local invalid=() code
+  for code in "$@"; do
+    is_valid_lang_code "$code" || invalid+=("$code")
+  done
+  if [[ ${#invalid[@]} -gt 0 ]]; then
+    echo "Error: invalid language code(s): ${invalid[*]}" >&2
+    echo "Expected ISO 639-1/2/3 or BCP 47 (e.g. en, zh_Hans, pt_BR)." >&2
+    exit 1
+  fi
+}

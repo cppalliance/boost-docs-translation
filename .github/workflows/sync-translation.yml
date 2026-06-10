@@ -42,6 +42,8 @@ jobs:
 
           # shellcheck source=assets/env.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
           git config user.name "$BOT_NAME"
           git config user.email "$BOT_EMAIL"
@@ -57,6 +59,12 @@ jobs:
           }
 
           echo "Found ${#local_branches[@]} local-* branch(es): ${local_branches[*]}" >&2
+
+          lang_codes_arr=()
+          for branch in "${local_branches[@]}"; do
+            lang_codes_arr+=("${branch#local-}")
+          done
+          validate_lang_codes "${lang_codes_arr[@]}"
 
           for branch in "${local_branches[@]}"; do
             echo "── $branch ──────────────────────────────────────" >&2
