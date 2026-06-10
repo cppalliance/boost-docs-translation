@@ -7,8 +7,12 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: ShellCheck
         run: |
@@ -21,5 +25,11 @@ jobs:
       - name: actionlint
         run: |
           set -euo pipefail
-          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          version="1.7.7"
+          tarball="actionlint_${version}_linux_amd64.tar.gz"
+          expected_sha256="023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+          curl -fsSL -o "$tarball" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
+          echo "${expected_sha256}  ${tarball}" | sha256sum -c -
+          tar -xzf "$tarball"
           ./actionlint -color
