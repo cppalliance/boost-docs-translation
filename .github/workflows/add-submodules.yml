@@ -71,6 +71,9 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
+          libs_ref="${LIBS_REF}"
+          boost_org="${BOOST_ORG}"
+
           # ── Organization repo helpers ────────────────────────────────────────
 
           create_repo() {
@@ -114,7 +117,7 @@ jobs:
               echo "  Skipping: $MODULE_ORG/$sub_name already exists." >&2; return 1
             fi
 
-            doc_paths=$(get_doc_paths "$sub_name" "$LIBS_REF") || {
+            doc_paths=$(get_doc_paths "$sub_name" "$libs_ref") || {
               META_MISSING+=("$sub_name")
               echo "  No libraries.json." >&2; return 2
             }
@@ -124,15 +127,15 @@ jobs:
             }
 
             local sub_clone="$BOOST_WORK/$sub_name"
-            clone_repo "https://github.com/${BOOST_ORG}/${sub_name}.git" \
-              "$LIBS_REF" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
+            clone_repo "https://github.com/${boost_org}/${sub_name}.git" \
+              "$libs_ref" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
 
             local -a paths_arr
             mapfile -t paths_arr <<< "$doc_paths"
             prune_to_doc_only "$sub_clone" "${paths_arr[@]}"
 
             local org_repo_url="https://github.com/${MODULE_ORG}/${sub_name}.git"
-            create_new_repo_and_push "$MODULE_ORG" "$sub_name" "$sub_clone" "$org_repo_url" "$LIBS_REF"
+            create_new_repo_and_push "$MODULE_ORG" "$sub_name" "$sub_clone" "$org_repo_url" "$libs_ref"
           }
 
           # ── Main ─────────────────────────────────────────────────────────────
