@@ -200,6 +200,6 @@ jobs:
             exit 1
           }
 
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF"
+          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}"
 
           echo "Done." >&2

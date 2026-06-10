@@ -373,7 +373,7 @@ jobs:
 
           # ── Step 3: finalize TRANSLATIONS_REPO ───────────────────────────────
 
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF"
+          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}"
 
           # ── Step 4: POST to Weblate ───────────────────────────────────────────
 

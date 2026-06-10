@@ -1,3 +1,7 @@
+# shellcheck shell=bash
+# shellcheck disable=SC2034
+# Variables in this file are consumed by lib.sh and workflow run blocks after `source`.
+
 # Common variables for all workflows. Source this file before lib.sh.
 
 ORG="${GITHUB_REPOSITORY%%/*}"

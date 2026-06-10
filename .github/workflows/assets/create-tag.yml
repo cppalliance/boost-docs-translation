@@ -20,16 +20,16 @@ jobs:
     steps:
       - name: Extract version and lang_code from branches
         id: tagname
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          REPO: ${{ github.event.repository.name }}
         run: |
-          HEAD_REF="${{ github.event.pull_request.head.ref }}"
-          BASE_REF="${{ github.event.pull_request.base.ref }}"
-          REPO="${{ github.event.repository.name }}"
-
           # lang_code from base branch: local-zh_Hans -> zh_Hans
           LANG_CODE="${BASE_REF#local-}"
 
           # version from head branch: translation-zh_Hans-boost-1.90.0 -> strip "translation-${LANG_CODE}-" -> boost-1.90.0
-          VERSION="${HEAD_REF#translation-${LANG_CODE}-}"
+          VERSION="${HEAD_REF#"translation-${LANG_CODE}-"}"
 
           # e.g. boost-1.90.0-algorithm-zh_Hans
           TAGNAME="${VERSION}-${REPO}-${LANG_CODE}"
