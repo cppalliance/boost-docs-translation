@@ -20,7 +20,9 @@ jobs:
           shellcheck -x \
             .github/workflows/assets/env.sh \
             .github/workflows/assets/lib.sh \
-            scripts/*.sh
+            .github/workflows/assets/translation.sh \
+            scripts/*.sh \
+            tests/helpers/*.bash
 
       - name: actionlint
         run: |
@@ -33,3 +35,18 @@ jobs:
           echo "${expected_sha256}  ${tarball}" | sha256sum -c -
           tar -xzf "$tarball"
           ./actionlint -color
+
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Run tests
+        run: make test

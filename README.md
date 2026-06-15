@@ -160,6 +160,16 @@ documented below.
 | `LANG_CODES`     | `add-submodules`, `start-translation` | Default language codes when **`client_payload.lang_codes`** is omitted (comma- or bracket-list, e.g. `zh_Hans,ja`). Must be set here or passed in the dispatch payload.                                                           |
 | `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for **`boostorg`** mirror repos (e.g. `CppDigest`). If unset, the org is the same as this repository’s owner. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
 
+## Development
+
+Run the shell test suite locally (requires [bats](https://github.com/bats-core/bats-core); on Ubuntu: `apt install bats`):
+
+```bash
+make test
+```
+
+CI runs **`make test`** on every push and pull request alongside ShellCheck and actionlint.
+
 ## License
 
 This repository is distributed under the
