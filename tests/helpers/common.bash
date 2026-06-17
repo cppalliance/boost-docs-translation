@@ -32,7 +32,11 @@ run_fn() {
   set +e
   "$@"
   local rc=$?
-  (( errexit_was_on )) && set -e || set +e
+  if (( errexit_was_on )); then
+    set -e
+  else
+    set +e
+  fi
   return "$rc"
 }
 
