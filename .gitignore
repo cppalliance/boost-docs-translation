@@ -9,3 +9,6 @@ data/
 
 # Local test scripts
 test/
+
+# Tool caches (actionlint binary downloaded by scripts/lint.sh)
+.cache/

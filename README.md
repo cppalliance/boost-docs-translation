@@ -160,6 +160,28 @@ documented below.
 | `LANG_CODES`     | `add-submodules`, `start-translation` | Default language codes when **`client_payload.lang_codes`** is omitted (comma- or bracket-list, e.g. `zh_Hans,ja`). Must be set here or passed in the dispatch payload.                                                           |
 | `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for **`boostorg`** mirror repos (e.g. `CppDigest`). If unset, the org is the same as this repository’s owner. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
 
+## Development
+
+Install git hooks (runs lint + tests before each commit):
+
+```bash
+scripts/install-git-hooks.sh
+```
+
+Requires **git** and **curl** for first-time setup. ShellCheck, actionlint, and bats are
+downloaded automatically into `.cache/` when not already installed (`apt install bats`
+is optional).
+
+Run checks manually:
+
+```bash
+make lint    # ShellCheck + actionlint
+make test    # bats test suite
+make check   # lint + test (same as pre-commit)
+```
+
+CI runs **`make test`** and **`scripts/lint.sh`** on every push and pull request.
+
 ## License
 
 This repository is distributed under the

@@ -14,22 +14,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: ShellCheck
-        run: |
-          set -euo pipefail
-          shellcheck -x \
-            .github/workflows/assets/env.sh \
-            .github/workflows/assets/lib.sh \
-            scripts/*.sh
+      - name: ShellCheck and actionlint
+        run: scripts/lint.sh
 
-      - name: actionlint
-        run: |
-          set -euo pipefail
-          version="1.7.7"
-          tarball="actionlint_${version}_linux_amd64.tar.gz"
-          expected_sha256="023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
-          curl -fsSL -o "$tarball" \
-            "https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
-          echo "${expected_sha256}  ${tarball}" | sha256sum -c -
-          tar -xzf "$tarball"
-          ./actionlint -color
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install bats
+        run: sudo apt-get update && sudo apt-get install -y bats
+
+      - name: Run tests
+        run: make test

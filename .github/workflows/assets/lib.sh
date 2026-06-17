@@ -14,6 +14,21 @@ set_git_bot_config() {
 
 repo_exists() { gh repo view "$1/$2" &>/dev/null; }
 
+# Returns 0 if org/repo has an open PR into local-{lang_code} with head matching
+# "translation-{lang_code}-*"; 1 if none; 2 if the GitHub API check failed.
+has_open_translation_pr() {
+  local org="$1" repo="$2" lang_code="$3"
+  local base_br="local-${lang_code}"
+  local output
+  if ! output=$(gh pr list --repo "$org/$repo" --state open --base "$base_br" --json headRefName \
+    --jq ".[] | select(.headRefName | startswith(\"translation-${lang_code}-\")) | .headRefName" \
+    2>&1); then
+    echo "  Error: could not list open PRs for $org/$repo (base=$base_br): $output" >&2
+    return 2
+  fi
+  [[ -n "$output" ]]
+}
+
 # ── Git clone helpers ────────────────────────────────────────────────
 
 # Clone repo at branch/tag into $3. Pass "keep" as $4 to preserve .git.
@@ -195,6 +210,22 @@ parse_list() {
   for part in "${parts[@]}"; do
     [[ -n "$part" ]] && echo "$part"
   done
+}
+
+# Parse "[.adoc, .md]" or '[".adoc",".md"]' into one extension per line.
+parse_extensions() {
+  local s="$1"
+  s="${s//[[:space:]]/}"; [[ -z "$s" ]] && return
+  s="${s#[}"; s="${s%]}"
+  local result=()
+  IFS=',' read -ra parts <<< "$s"
+  for part in "${parts[@]}"; do
+    part="${part//\"/}"; part="${part//\'/}"
+    [[ -z "$part" ]] && continue
+    [[ "$part" == .* ]] || part=".${part}"
+    result+=("$part")
+  done
+  printf '%s\n' "${result[@]}"
 }
 
 # Return 0 when $1 is a well-formed Weblate language code.
