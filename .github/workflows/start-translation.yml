@@ -92,7 +92,6 @@ jobs:
           }
 
           UPDATES=()
-          declare -A add_or_update
           META_MISSING=()
           NO_DOC_PATHS=()
           ORG_REPO_MISSING=()
@@ -112,7 +111,8 @@ jobs:
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
 
-          # shellcheck disable=SC2153
+          # libs_ref is read by translation.sh (sourced).
+          # shellcheck disable=SC2034
           libs_ref="${LIBS_REF:?}"
 
           ORG_WORK="$WORK_DIR/$MODULE_ORG"
