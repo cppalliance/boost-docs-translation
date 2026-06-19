@@ -68,6 +68,14 @@ process_one_submodule() {
   local sub_name="$1" doc_paths
   local phase="${START_PHASE:-}"
 
+  case "$phase" in
+    ""|mirrors|local) ;;
+    *)
+      echo "Error: invalid START_PHASE='$phase'; expected mirrors, local, or unset." >&2
+      return 2
+      ;;
+  esac
+
   if ! repo_exists "$MODULE_ORG" "$sub_name"; then
     ORG_REPO_MISSING+=("$sub_name")
     echo "  Error: $MODULE_ORG/$sub_name does not exist. Run add-submodules first." >&2

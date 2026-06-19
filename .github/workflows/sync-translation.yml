@@ -137,7 +137,7 @@ jobs:
 
           if [[ $updated -eq 1 ]] && ! git diff --staged --quiet; then
             git commit -m "Update libs submodules ($branch)"
-            git push --force origin "HEAD:$branch"
+            git push --force-with-lease origin "HEAD:$branch"
             echo "  Pushed to origin/$branch" >&2
           else
             echo "  No pointer changes for $branch." >&2

@@ -139,3 +139,80 @@ setup() {
 
   cleanup_git_fixture_root
 }
+
+@test "finalize_translations_master: no-op when UPDATES empty" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+
+  UPDATES=()
+  SYNC_CALLS=()
+  sync_translations_branch() { SYNC_CALLS+=("branch=$2 force=${4:-false}"); }
+
+  finalize_translations_master "$trans_dir" "develop"
+  [ "${#SYNC_CALLS[@]}" -eq 0 ]
+
+  cleanup_git_fixture_root
+}
+
+@test "finalize_translations_master: syncs master without force" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+
+  UPDATES=("algorithm")
+  SYNC_CALLS=()
+  sync_translations_branch() { SYNC_CALLS+=("branch=$2 force=${4:-false}"); }
+
+  finalize_translations_master "$trans_dir" "develop"
+  [ "${#SYNC_CALLS[@]}" -eq 1 ]
+  [ "${SYNC_CALLS[0]}" = "branch=master force=false" ]
+
+  cleanup_git_fixture_root
+}
+
+@test "finalize_translations_local: syncs local branch with force" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+
+  UPDATES=("algorithm")
+  SYNC_CALLS=()
+  sync_translations_branch() { SYNC_CALLS+=("branch=$2 force=${4:-false}"); }
+
+  finalize_translations_local "$trans_dir" "develop" "en"
+  [ "${#SYNC_CALLS[@]}" -eq 1 ]
+  [ "${SYNC_CALLS[0]}" = "branch=local-en force=true" ]
+
+  cleanup_git_fixture_root
+}
+
+@test "finalize_translations_repo: syncs master then each local branch" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+
+  UPDATES=("algorithm")
+  SYNC_CALLS=()
+  sync_translations_branch() { SYNC_CALLS+=("branch=$2 force=${4:-false}"); }
+
+  finalize_translations_repo "$trans_dir" "develop" "en" "zh_Hans"
+  [ "${#SYNC_CALLS[@]}" -eq 3 ]
+  [ "${SYNC_CALLS[0]}" = "branch=master force=false" ]
+  [ "${SYNC_CALLS[1]}" = "branch=local-en force=true" ]
+  [ "${SYNC_CALLS[2]}" = "branch=local-zh_Hans force=true" ]
+
+  cleanup_git_fixture_root
+}
