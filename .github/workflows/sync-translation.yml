@@ -22,6 +22,9 @@ on:
   schedule:
     - cron: "0 0 * * *"
 
+permissions:
+  contents: read
+
 jobs:
   discover:
     runs-on: ubuntu-latest
@@ -29,10 +32,11 @@ jobs:
       json: ${{ steps.branches.outputs.json }}
     steps:
       - name: Checkout repository (master)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Discover local-* branches
         id: branches
@@ -83,14 +87,16 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository (master)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Sync local-${{ matrix.lang }}
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          SYNC_LANG: ${{ matrix.lang }}
         run: |
           set -euo pipefail
 
@@ -101,10 +107,12 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
+          validate_lang_codes "$SYNC_LANG"
+
           git config user.name "$BOT_NAME"
           git config user.email "$BOT_EMAIL"
 
-          branch="local-${{ matrix.lang }}"
+          branch="local-${SYNC_LANG}"
           echo "── $branch ──────────────────────────────────────" >&2
           git fetch origin "$branch"
           git checkout -B "$branch" "origin/$branch"

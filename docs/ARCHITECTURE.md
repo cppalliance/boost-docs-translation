@@ -95,9 +95,10 @@ moves submodule SHAs on existing **`local-*`** branches.
 | **`.github/workflows/assets/create-tag.yml`** | Template copied into each mirror; tags merged Weblate PRs (see **assets/README.md**). |
 | **`scripts/trigger-*.sh`** | Optional local wrappers around **`repository_dispatch`**; no server-side logic. |
 
-**Dependency direction.** Inline bash in **`add-submodules.yml`** and
-**`start-translation.yml`** sources **`env.sh`** then **`lib.sh`**. **`sync-translation`**
-sources only **`env.sh`** (git-only loop, no **`lib.sh`**).
+**Dependency direction.** Inline bash in **`add-submodules.yml`**,
+**`start-translation.yml`**, and **`sync-translation.yml`** sources **`env.sh`** then
+**`lib.sh`**. **`sync-translation`** uses **`lib.sh`** for **`validate_lang_codes`** in
+**`discover`** and **`sync-local`**; submodule pointer updates remain inline git.
 
 ---
 

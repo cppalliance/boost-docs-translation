@@ -28,6 +28,9 @@ on:
   repository_dispatch:
     types: [start-translation]
 
+permissions:
+  contents: read
+
 jobs:
   setup:
     runs-on: ubuntu-latest
@@ -35,9 +38,10 @@ jobs:
       json: ${{ steps.langs.outputs.json }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
+          persist-credentials: false
 
       - name: Validate language codes
         id: langs
@@ -68,9 +72,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
+          persist-credentials: false
 
       - name: Checkout master for .gitmodules
         run: git checkout master
@@ -181,9 +186,10 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
+          persist-credentials: false
 
       - name: Checkout master for .gitmodules
         run: git checkout master
