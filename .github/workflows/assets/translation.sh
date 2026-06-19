@@ -3,7 +3,7 @@
 # Source after env.sh and lib.sh. Requires globals:
 # MODULE_ORG, MASTER_BRANCH, BOOST_ORG, BOOST_WORK, ORG_WORK, libs_ref,
 # lang_codes_arr, add_or_update (associative), ORG_REPO_MISSING, META_MISSING,
-# NO_DOC_PATHS, GITHUB_WORKSPACE.
+# NO_DOC_PATHS, GITHUB_WORKSPACE, START_PHASE (optional: mirrors | local).
 # shellcheck disable=SC2034,SC2154
 
 # Wipe dest_repo (except .git), copy pruned source, commit, push master only.
@@ -66,6 +66,7 @@ process_local_branch() {
 
 process_one_submodule() {
   local sub_name="$1" doc_paths
+  local phase="${START_PHASE:-}"
 
   if ! repo_exists "$MODULE_ORG" "$sub_name"; then
     ORG_REPO_MISSING+=("$sub_name")
@@ -82,21 +83,32 @@ process_one_submodule() {
     echo "  No doc paths in metadata, skipping." >&2; return 1
   }
 
-  local sub_clone="$BOOST_WORK/$sub_name"
-  clone_repo "https://github.com/${BOOST_ORG}/${sub_name}.git" \
-    "$libs_ref" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
-
-  local -a paths_arr
-  mapfile -t paths_arr <<< "$doc_paths"
-  prune_to_doc_only "$sub_clone" "${paths_arr[@]}"
-
   local org_repo_url="https://github.com/${MODULE_ORG}/${sub_name}.git"
   local dest_repo="$ORG_WORK/$sub_name"
-  clone_repo "$org_repo_url" "$MASTER_BRANCH" "$dest_repo" keep || {
-    echo "  clone_repo failed." >&2; return 2
-  }
 
-  sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref" || return 2
+  if [[ "$phase" != "local" ]]; then
+    local sub_clone="$BOOST_WORK/$sub_name"
+    clone_repo "https://github.com/${BOOST_ORG}/${sub_name}.git" \
+      "$libs_ref" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
+
+    local -a paths_arr
+    mapfile -t paths_arr <<< "$doc_paths"
+    prune_to_doc_only "$sub_clone" "${paths_arr[@]}"
+
+    clone_repo "$org_repo_url" "$MASTER_BRANCH" "$dest_repo" keep || {
+      echo "  clone_repo failed." >&2; return 2
+    }
+
+    sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref" || return 2
+
+    if [[ "$phase" == "mirrors" ]]; then
+      return 0
+    fi
+  else
+    clone_repo "$org_repo_url" "$MASTER_BRANCH" "$dest_repo" keep || {
+      echo "  clone_repo failed." >&2; return 2
+    }
+  fi
 
   local any_added=0 rc
   for lang_code in "${lang_codes_arr[@]}"; do

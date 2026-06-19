@@ -7,12 +7,10 @@
 # Submodules list is taken from .gitmodules of this repository at master
 # (only libs/ entries). No new org repos are created; run add-submodules first.
 #
-# For each lang_code in LANG_CODES:
-#   1. Ensures TRANSLATIONS_REPO has a "local-{lang_code}" branch.
-#   2. For each submodule: syncs mirror master, then handles "local-{lang_code}" in the
-#      library mirror repo (creates if missing, or merges master if no open translation PR).
-#   3. Updates TRANSLATIONS_REPO master and each "local-{lang_code}" submodule pointer.
-#   4. POSTs to Weblate with add_or_update map: {lang_code: [submodules, ...]}.
+# Jobs:
+#   setup — validate lang_codes and emit matrix JSON.
+#   sync-mirrors — sync mirror master for all submodules; update super-repo master.
+#   start-local (matrix per lang) — local-{lang_code} in mirrors + super-repo + Weblate.
 #
 # client_payload:
 #   lang_codes: (optional) Comma-separated lang codes (e.g. zh_Hans,ja). Defaults to vars.LANG_CODES.
@@ -31,8 +29,10 @@ on:
     types: [start-translation]
 
 jobs:
-  start-translation:
+  setup:
     runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.langs.outputs.json }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,6 +40,7 @@ jobs:
           token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Validate language codes
+        id: langs
         env:
           LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
         run: |
@@ -55,19 +56,32 @@ jobs:
             echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
           }
           validate_lang_codes "${lang_codes_arr[@]}"
+          langs_json=$(printf '%s\n' "${lang_codes_arr[@]}" | jq -R . | jq -s -c .)
+          echo "json=$langs_json" >> "$GITHUB_OUTPUT"
+          echo "Lang codes: ${lang_codes_arr[*]}" >&2
+
+  sync-mirrors:
+    needs: setup
+    runs-on: ubuntu-latest
+    concurrency:
+      group: translations-mirror-master
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Checkout master for .gitmodules
         run: git checkout master
 
-      - name: Start translation
+      - name: Sync mirror master
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
           LIBS_REF: ${{ github.event.client_payload.version || 'develop' }}
           LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
-          EXTENSIONS: ${{ github.event.client_payload.extensions || '' }}
-          WEBLATE_URL: ${{ secrets.WEBLATE_URL }}
-          WEBLATE_TOKEN: ${{ secrets.WEBLATE_TOKEN }}
+          START_PHASE: mirrors
           SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
         run: |
           set -euo pipefail
@@ -77,8 +91,119 @@ jobs:
             exit 1
           }
 
-          [[ -z "${LANG_CODES:-}" ]] && {
-            echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
+          UPDATES=()
+          declare -A add_or_update
+          META_MISSING=()
+          NO_DOC_PATHS=()
+          ORG_REPO_MISSING=()
+
+          WORK_DIR=$(mktemp -d)
+          trap 'rm -rf "$WORK_DIR"' EXIT
+          BOOST_WORK="$WORK_DIR/boost"
+          TRANS_DIR="$WORK_DIR/translations"
+          mkdir -p "$BOOST_WORK"
+
+          gh auth setup-git
+
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          # shellcheck source=assets/translation.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+
+          # shellcheck disable=SC2153
+          libs_ref="${LIBS_REF:?}"
+
+          ORG_WORK="$WORK_DIR/$MODULE_ORG"
+          mkdir -p "$ORG_WORK"
+
+          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
+          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
+            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
+          }
+          validate_lang_codes "${lang_codes_arr[@]}"
+
+          [[ ! -f .gitmodules ]] && {
+            echo "Error: .gitmodules not found (run from translations repo with master checked out)" >&2
+            exit 1
+          }
+
+          mapfile -t submodule_names < <(
+            git config -f .gitmodules --get-regexp 'submodule\..*\.path' 2>/dev/null \
+              | awk '{print $2}' | { grep '^libs/' || true; } | sed 's|^libs/||'
+          )
+
+          [[ ${#submodule_names[@]} -eq 0 ]] && {
+            echo "No libs/ submodules in .gitmodules, nothing to sync." >&2; exit 0
+          }
+
+          echo "Syncing mirror master for ${#submodule_names[@]} submodules." >&2
+
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
+
+          total=${#submodule_names[@]}
+          submodule_fatal=0
+          for i in "${!submodule_names[@]}"; do
+            sub="${submodule_names[$i]}"
+            echo "[$(( i + 1 ))/$total] $sub ..." >&2
+            if process_one_submodule "$sub"; then
+              UPDATES+=("$sub")
+            else
+              rc=$?
+              [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))
+            fi
+          done
+
+          echo "── Summary: Boost library documentation metadata ──" >&2
+          echo "  Type 1 — Missing or unreadable meta/libraries.json (${#META_MISSING[@]}): $([[ ${#META_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${META_MISSING[*]}")" >&2
+          echo "  Type 2 — No doc paths in meta/libraries.json (${#NO_DOC_PATHS[@]}): $([[ ${#NO_DOC_PATHS[@]} -eq 0 ]] && echo '(none)' || echo "${NO_DOC_PATHS[*]}")" >&2
+          echo "  Type 3 — Lib repo missing in org (run add-submodules first) (${#ORG_REPO_MISSING[@]}): $([[ ${#ORG_REPO_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${ORG_REPO_MISSING[*]}")" >&2
+
+          [[ $submodule_fatal -gt 0 ]] && {
+            echo "Error: $submodule_fatal submodule(s) failed with errors." >&2
+            exit 1
+          }
+
+          finalize_translations_master "$TRANS_DIR" "$LIBS_REF"
+
+          echo "Done." >&2
+
+  start-local:
+    needs: [setup, sync-mirrors]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: ${{ fromJson(needs.setup.outputs.json) }}
+    concurrency:
+      group: local-branch-${{ matrix.lang }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Checkout master for .gitmodules
+        run: git checkout master
+
+      - name: Start translation for ${{ matrix.lang }}
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          LIBS_REF: ${{ github.event.client_payload.version || 'develop' }}
+          LANG_CODES: ${{ matrix.lang }}
+          START_PHASE: local
+          EXTENSIONS: ${{ github.event.client_payload.extensions || '' }}
+          WEBLATE_URL: ${{ secrets.WEBLATE_URL }}
+          WEBLATE_TOKEN: ${{ secrets.WEBLATE_TOKEN }}
+          SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
+        run: |
+          set -euo pipefail
+
+          [[ -z "${GITHUB_TOKEN:-}" ]] && {
+            echo "Error: SYNC_TOKEN secret is not set." >&2
             exit 1
           }
 
@@ -94,7 +219,6 @@ jobs:
 
           UPDATES=()
           declare -A add_or_update
-          # Summary buckets (doc metadata / missing lib repo); printed after Step 2.
           META_MISSING=()
           NO_DOC_PATHS=()
           ORG_REPO_MISSING=()
@@ -105,8 +229,6 @@ jobs:
           TRANS_DIR="$WORK_DIR/translations"
           mkdir -p "$BOOST_WORK"
 
-          # Configure git credential helper so all github.com pushes are authenticated
-          # without embedding tokens in remote URLs.
           gh auth setup-git
 
           # shellcheck source=assets/env.sh
@@ -116,21 +238,15 @@ jobs:
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
 
-          # LIBS_REF: workflow env
           # shellcheck disable=SC2153
           libs_ref="${LIBS_REF:?}"
 
           ORG_WORK="$WORK_DIR/$MODULE_ORG"
           mkdir -p "$ORG_WORK"
 
-          # ── Weblate helpers ───────────────────────────────────────────────────
-
-          # POST to Weblate add-or-update (async: server returns 202 + task_id quickly).
-          # Payload: {organization, add_or_update: {lang_code: [subs...]}, version, extensions}
           trigger_weblate() {
             local weblate_url="$1" weblate_token="$2" libs_ref="$3" exts_json="$4"
 
-            # Build add_or_update JSON object from associative array.
             local add_or_update_json="{}"
             for lang_code in "${lang_codes_arr[@]}"; do
               local subs="${add_or_update[$lang_code]:-}"
@@ -194,14 +310,12 @@ jobs:
             rm -f "$resp"
           }
 
-          # ── Main ─────────────────────────────────────────────────────────────
-
           mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
           [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
             echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
           }
           validate_lang_codes "${lang_codes_arr[@]}"
-          echo "Lang codes: ${lang_codes_arr[*]}" >&2
+          echo "Lang code: ${lang_codes_arr[*]}" >&2
 
           for lang_code in "${lang_codes_arr[@]}"; do
             add_or_update["$lang_code"]=""
@@ -221,16 +335,12 @@ jobs:
             echo "No libs/ submodules in .gitmodules, nothing to sync." >&2; exit 0
           }
 
-          echo "Syncing ${#submodule_names[@]} submodules from .gitmodules." >&2
-
-          # ── Step 1: ensure TRANSLATIONS_REPO has local-{lang_code} branches ──
+          echo "Processing local branches for ${#submodule_names[@]} submodules." >&2
 
           ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
           for lang_code in "${lang_codes_arr[@]}"; do
             ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code"
           done
-
-          # ── Step 2: process submodules ────────────────────────────────────────
 
           total=${#submodule_names[@]}
           submodule_fatal=0
@@ -255,11 +365,9 @@ jobs:
             exit 1
           }
 
-          # ── Step 3: finalize TRANSLATIONS_REPO ───────────────────────────────
-
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}"
-
-          # ── Step 4: POST to Weblate ───────────────────────────────────────────
+          for lang_code in "${lang_codes_arr[@]}"; do
+            finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$lang_code"
+          done
 
           ext_arr=()
           [[ -n "${EXTENSIONS:-}" ]] && mapfile -t ext_arr < <(parse_extensions "$EXTENSIONS")

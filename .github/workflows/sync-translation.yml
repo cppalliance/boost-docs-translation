@@ -1,9 +1,9 @@
 # Sync submodule pointers on all "local-*" branches to the tip of each submodule's
 # corresponding "local-*" branch.
 #
-# Discovers all remote "local-*" branches in TRANSLATIONS_REPO, then for each one:
-# checks it out with submodules, advances every submodule pointer to that branch's
-# tip in the submodule repo, commits, and force-pushes.
+# Jobs:
+#   discover — list remote local-* branches and emit matrix JSON.
+#   sync-local (matrix per lang) — advance submodule pointers on one local-* branch.
 #
 # Workflow lives on master (default). Trigger: repository_dispatch (event_type
 # "sync-translation") or schedule (every day).
@@ -23,8 +23,10 @@ on:
     - cron: "0 0 * * *"
 
 jobs:
-  sync-translation:
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.branches.outputs.json }}
     steps:
       - name: Checkout repository (master)
         uses: actions/checkout@v4
@@ -32,7 +34,61 @@ jobs:
           token: ${{ secrets.SYNC_TOKEN }}
           fetch-depth: 0
 
-      - name: Sync translation
+      - name: Discover local-* branches
+        id: branches
+        env:
+          GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          gh auth setup-git
+
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+
+          mapfile -t local_branches < <(
+            git ls-remote --heads origin 'refs/heads/local-*' \
+              | awk '{print $2}' | sed 's|refs/heads/||'
+          )
+
+          if [[ ${#local_branches[@]} -eq 0 ]]; then
+            echo "No local-* branches found." >&2
+            echo 'json=[]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Found ${#local_branches[@]} local-* branch(es): ${local_branches[*]}" >&2
+
+          lang_codes_arr=()
+          for branch in "${local_branches[@]}"; do
+            lang_codes_arr+=("${branch#local-}")
+          done
+          validate_lang_codes "${lang_codes_arr[@]}"
+
+          langs_json=$(printf '%s\n' "${lang_codes_arr[@]}" | jq -R . | jq -s -c .)
+          echo "json=$langs_json" >> "$GITHUB_OUTPUT"
+
+  sync-local:
+    needs: discover
+    if: needs.discover.outputs.json != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lang: ${{ fromJson(needs.discover.outputs.json) }}
+    concurrency:
+      group: local-branch-${{ matrix.lang }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository (master)
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          fetch-depth: 0
+
+      - name: Sync local-${{ matrix.lang }}
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
@@ -48,54 +104,35 @@ jobs:
           git config user.name "$BOT_NAME"
           git config user.email "$BOT_EMAIL"
 
-          # Discover all remote local-* branches.
-          mapfile -t local_branches < <(
-            git ls-remote --heads origin 'refs/heads/local-*' \
-              | awk '{print $2}' | sed 's|refs/heads/||'
-          )
+          branch="local-${{ matrix.lang }}"
+          echo "── $branch ──────────────────────────────────────" >&2
+          git fetch origin "$branch"
+          git checkout -B "$branch" "origin/$branch"
+          git submodule update --init
 
-          [[ ${#local_branches[@]} -eq 0 ]] && {
-            echo "No local-* branches found, nothing to do." >&2; exit 0
-          }
-
-          echo "Found ${#local_branches[@]} local-* branch(es): ${local_branches[*]}" >&2
-
-          lang_codes_arr=()
-          for branch in "${local_branches[@]}"; do
-            lang_codes_arr+=("${branch#local-}")
-          done
-          validate_lang_codes "${lang_codes_arr[@]}"
-
-          for branch in "${local_branches[@]}"; do
-            echo "── $branch ──────────────────────────────────────" >&2
-            git fetch origin "$branch"
-            git checkout -B "$branch" "origin/$branch"
-            git submodule update --init
-
-            updated=0
-            while IFS= read -r sub_path; do
-              [[ -z "$sub_path" ]] && continue
-              if [[ ! -d "$sub_path" ]]; then
-                echo "  Warning: submodule path missing after init, skipping: $sub_path" >&2
-                continue
-              fi
-              git config "submodule.${sub_path}.branch" "$branch"
-              git -C "$sub_path" fetch origin \
-                "refs/heads/${branch}:refs/remotes/origin/${branch}"
-              git submodule update --remote "$sub_path"
-              git add "$sub_path"
-              echo "  Updated $sub_path -> $(git -C "$sub_path" rev-parse --short HEAD)" >&2
-              updated=1
-            done < <(git config -f .gitmodules --get-regexp 'submodule\..*\.path' \
-                       2>/dev/null | sed 's/^[^ ]* //')
-
-            if [[ $updated -eq 1 ]] && ! git diff --staged --quiet; then
-              git commit -m "Update libs submodules ($branch)"
-              git push --force origin "HEAD:$branch"
-              echo "  Pushed to origin/$branch" >&2
-            else
-              echo "  No pointer changes for $branch." >&2
+          updated=0
+          while IFS= read -r sub_path; do
+            [[ -z "$sub_path" ]] && continue
+            if [[ ! -d "$sub_path" ]]; then
+              echo "  Warning: submodule path missing after init, skipping: $sub_path" >&2
+              continue
             fi
-          done
+            git config "submodule.${sub_path}.branch" "$branch"
+            git -C "$sub_path" fetch origin \
+              "refs/heads/${branch}:refs/remotes/origin/${branch}"
+            git submodule update --remote "$sub_path"
+            git add "$sub_path"
+            echo "  Updated $sub_path -> $(git -C "$sub_path" rev-parse --short HEAD)" >&2
+            updated=1
+          done < <(git config -f .gitmodules --get-regexp 'submodule\..*\.path' \
+                     2>/dev/null | sed 's/^[^ ]* //')
+
+          if [[ $updated -eq 1 ]] && ! git diff --staged --quiet; then
+            git commit -m "Update libs submodules ($branch)"
+            git push --force origin "HEAD:$branch"
+            echo "  Pushed to origin/$branch" >&2
+          else
+            echo "  No pointer changes for $branch." >&2
+          fi
 
           echo "Done." >&2

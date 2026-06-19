@@ -186,15 +186,27 @@ sync_translations_branch() {
   commit_and_push_translations_branch "$dir" "$branch" "$libs_ref" "$force"
 }
 
+finalize_translations_master() {
+  local dir="$1" libs_ref="$2"
+  [[ ${#UPDATES[@]} -eq 0 ]] && return
+  git -C "$dir" fetch origin
+  sync_translations_branch "$dir" "$MASTER_BRANCH" "$libs_ref"
+}
+
+finalize_translations_local() {
+  local dir="$1" libs_ref="$2" lang_code="$3"
+  [[ ${#UPDATES[@]} -eq 0 ]] && return
+  git -C "$dir" fetch origin
+  sync_translations_branch "$dir" "local-${lang_code}" "$libs_ref" true
+}
+
 finalize_translations_repo() {
   local dir="$1" libs_ref="$2"
   shift 2
   local lang_codes_arr=("$@")
-  [[ ${#UPDATES[@]} -eq 0 ]] && return
-  git -C "$dir" fetch origin
-  sync_translations_branch "$dir" "$MASTER_BRANCH" "$libs_ref"
+  finalize_translations_master "$dir" "$libs_ref"
   for lang_code in "${lang_codes_arr[@]}"; do
-    sync_translations_branch "$dir" "local-${lang_code}" "$libs_ref" true
+    finalize_translations_local "$dir" "$libs_ref" "$lang_code"
   done
 }
 
