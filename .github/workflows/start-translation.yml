@@ -311,6 +311,8 @@ jobs:
           validate_lang_codes "$LANG_CODE"
           echo "Lang code: $LANG_CODE" >&2
 
+          # Read by process_one_submodule in translation.sh (sourced above).
+          # shellcheck disable=SC2034
           lang_codes_arr=("$LANG_CODE")
           add_or_update["$LANG_CODE"]=""
 
