@@ -140,7 +140,7 @@ holds **actual file** merges from **`master`** plus translator edits.
 ### 5.3 Pointer roll-up (**`sync-translation`**)
 
 1. **`discover`**: list **`refs/heads/local-*`** on the super-repo; emit JSON for the matrix.
-2. **`sync-local`** (matrix per **`lang_code`**, concurrency **`local-branch-{lang_code}`**): checkout one **`local-*`** branch, **`git submodule update --init`**, set **`submodule.<path>.branch`**, **`submodule update --remote`**, commit, **`push --force`**.
+2. **`sync-local`** (matrix per **`lang_code`**, concurrency **`local-branch-{lang_code}`**): checkout one **`local-*`** branch, **`git submodule update --init`**, set **`submodule.<path>.branch`**, **`submodule update --remote`**, commit, **`push ----force-with-lease`**.
 
 ---
 
