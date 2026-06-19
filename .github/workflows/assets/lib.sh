@@ -170,7 +170,7 @@ commit_and_push_translations_branch() {
     git -C "$dir" commit -m "Update libs submodules to $libs_ref"
   fi
   if [[ "$force" == "true" ]]; then
-    git -C "$dir" push --force origin "$branch"
+    git -C "$dir" push --force-with-lease origin "$branch"
   else
     git -C "$dir" push origin "$branch"
   fi
@@ -200,6 +200,7 @@ finalize_translations_local() {
   sync_translations_branch "$dir" "local-${lang_code}" "$libs_ref" true
 }
 
+# Used by add-submodules.yml (start-translation calls finalize_translations_* directly).
 finalize_translations_repo() {
   local dir="$1" libs_ref="$2"
   shift 2

@@ -85,7 +85,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
           LIBS_REF: ${{ github.event.client_payload.version || 'develop' }}
-          LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
           START_PHASE: mirrors
           SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
         run: |
@@ -122,12 +121,6 @@ jobs:
 
           ORG_WORK="$WORK_DIR/$MODULE_ORG"
           mkdir -p "$ORG_WORK"
-
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
 
           [[ ! -f .gitmodules ]] && {
             echo "Error: .gitmodules not found (run from translations repo with master checked out)" >&2
@@ -199,7 +192,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
           LIBS_REF: ${{ github.event.client_payload.version || 'develop' }}
-          LANG_CODES: ${{ matrix.lang }}
+          LANG_CODE: ${{ matrix.lang }}
           START_PHASE: local
           EXTENSIONS: ${{ github.event.client_payload.extensions || '' }}
           WEBLATE_URL: ${{ secrets.WEBLATE_URL }}
@@ -253,15 +246,14 @@ jobs:
           trigger_weblate() {
             local weblate_url="$1" weblate_token="$2" libs_ref="$3" exts_json="$4"
 
-            local add_or_update_json="{}"
-            for lang_code in "${lang_codes_arr[@]}"; do
-              local subs="${add_or_update[$lang_code]:-}"
-              [[ -z "$subs" ]] && continue
-              local subs_json
-              subs_json=$(echo "$subs" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s .)
-              add_or_update_json=$(echo "$add_or_update_json" | \
-                jq --arg lc "$lang_code" --argjson s "$subs_json" '. + {($lc): $s}')
-            done
+            local subs="${add_or_update[$LANG_CODE]:-}"
+            [[ -z "$subs" ]] && {
+              echo "Weblate skipped: no translations to update." >&2; return
+            }
+            local subs_json add_or_update_json
+            subs_json=$(echo "$subs" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s .)
+            add_or_update_json=$(jq -n --arg lc "$LANG_CODE" --argjson s "$subs_json" \
+              '{($lc): $s}')
 
             [[ "$add_or_update_json" == "{}" ]] && {
               echo "Weblate skipped: no translations to update." >&2; return
@@ -316,16 +308,11 @@ jobs:
             rm -f "$resp"
           }
 
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
-          echo "Lang code: ${lang_codes_arr[*]}" >&2
+          validate_lang_codes "$LANG_CODE"
+          echo "Lang code: $LANG_CODE" >&2
 
-          for lang_code in "${lang_codes_arr[@]}"; do
-            add_or_update["$lang_code"]=""
-          done
+          lang_codes_arr=("$LANG_CODE")
+          add_or_update["$LANG_CODE"]=""
 
           [[ ! -f .gitmodules ]] && {
             echo "Error: .gitmodules not found (run from translations repo with master checked out)" >&2
@@ -344,9 +331,7 @@ jobs:
           echo "Processing local branches for ${#submodule_names[@]} submodules." >&2
 
           ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
-          for lang_code in "${lang_codes_arr[@]}"; do
-            ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code"
-          done
+          ensure_local_branch_in_translations "$TRANS_DIR" "$LANG_CODE"
 
           total=${#submodule_names[@]}
           submodule_fatal=0
@@ -371,9 +356,7 @@ jobs:
             exit 1
           }
 
-          for lang_code in "${lang_codes_arr[@]}"; do
-            finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$lang_code"
-          done
+          finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$LANG_CODE"
 
           ext_arr=()
           [[ -n "${EXTENSIONS:-}" ]] && mapfile -t ext_arr < <(parse_extensions "$EXTENSIONS")
