@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 # Run ShellCheck and actionlint (same checks as CI lint job).
+# Versions below are pinned; binaries are always taken from .cache/ so local matches CI.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-ensure_shellcheck() {
-  if command -v shellcheck >/dev/null 2>&1; then
-    SHELLCHECK_BIN="$(command -v shellcheck)"
-    return
-  fi
+SHELLCHECK_VERSION="v0.11.0"
+ACTIONLINT_VERSION="1.7.7"
 
-  local version="v0.11.0"
+ensure_shellcheck() {
+  local version="$SHELLCHECK_VERSION"
   local cache_dir="$ROOT/.cache/shellcheck"
-  local bin="$cache_dir/shellcheck"
+  local extract_dir="$cache_dir/shellcheck-${version}"
+  local bin="$cache_dir/shellcheck-bin-${version}"
   mkdir -p "$cache_dir"
 
   if [[ -x "$bin" ]]; then
@@ -37,7 +37,6 @@ ensure_shellcheck() {
           ;;
         *)
           echo "lint: unsupported Linux architecture for shellcheck download: $arch" >&2
-          echo "lint: install shellcheck manually (e.g. apt install shellcheck)." >&2
           exit 1
           ;;
       esac
@@ -59,8 +58,7 @@ ensure_shellcheck() {
       esac
       ;;
     *)
-      echo "lint: shellcheck not found and auto-download unsupported on $os." >&2
-      echo "lint: install shellcheck manually (e.g. apt install shellcheck)." >&2
+      echo "lint: shellcheck auto-download unsupported on $os." >&2
       exit 1
       ;;
   esac
@@ -70,7 +68,7 @@ ensure_shellcheck() {
     echo "lint: downloading shellcheck ${version}..." >&2
     curl -fsSL -o "$cache_dir/$tarball" "$url"
   fi
-  if [[ ! -d "$cache_dir/shellcheck-${version}" ]]; then
+  if [[ ! -d "$extract_dir" ]]; then
     if [[ "$os" == "Linux" ]]; then
       echo "${expected_sha256}  $cache_dir/$tarball" | sha256sum -c -
     else
@@ -81,37 +79,35 @@ ensure_shellcheck() {
       exit 1
     fi
   fi
-  cp "$cache_dir/shellcheck-${version}/shellcheck" "$bin"
+  cp "$extract_dir/shellcheck" "$bin"
   chmod +x "$bin"
   SHELLCHECK_BIN="$bin"
 }
 
-ensure_shellcheck
+ensure_actionlint() {
+  local version="$ACTIONLINT_VERSION"
+  local cache_dir="$ROOT/.cache/actionlint"
+  local extract_dir="$cache_dir/actionlint-${version}"
+  local bin="$cache_dir/actionlint-bin-${version}"
+  mkdir -p "$cache_dir"
 
-"$SHELLCHECK_BIN" -x \
-  .github/workflows/assets/env.sh \
-  .github/workflows/assets/lib.sh \
-  .github/workflows/assets/translation.sh \
-  scripts/*.sh \
-  tests/helpers/*.bash
+  if [[ -x "$bin" ]]; then
+    ACTIONLINT_BIN="$bin"
+    return
+  fi
 
-ACTIONLINT_VERSION="1.7.7"
-CACHE_DIR="$ROOT/.cache/actionlint"
-ACTIONLINT_BIN="$CACHE_DIR/actionlint"
-mkdir -p "$CACHE_DIR"
-
-if [[ ! -x "$ACTIONLINT_BIN" ]]; then
+  local os arch tarball expected_sha256
   os="$(uname -s)"
   arch="$(uname -m)"
   case "$os" in
     Linux)
       case "$arch" in
         x86_64)
-          tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          tarball="actionlint_${version}_linux_amd64.tar.gz"
           expected_sha256="023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
           ;;
         aarch64|arm64)
-          tarball="actionlint_${ACTIONLINT_VERSION}_linux_arm64.tar.gz"
+          tarball="actionlint_${version}_linux_arm64.tar.gz"
           expected_sha256="401942f9c24ed71e4fe71b76c7d638f66d8633575c4016efd2977ce7c28317d0"
           ;;
         *)
@@ -123,11 +119,11 @@ if [[ ! -x "$ACTIONLINT_BIN" ]]; then
     Darwin)
       case "$arch" in
         x86_64)
-          tarball="actionlint_${ACTIONLINT_VERSION}_darwin_amd64.tar.gz"
+          tarball="actionlint_${version}_darwin_amd64.tar.gz"
           expected_sha256="28e5de5a05fc558474f638323d736d822fff183d2d492f0aecb2b73cc44584f5"
           ;;
         arm64)
-          tarball="actionlint_${ACTIONLINT_VERSION}_darwin_arm64.tar.gz"
+          tarball="actionlint_${version}_darwin_arm64.tar.gz"
           expected_sha256="2693315b9093aeacb4ebd91a993fea54fc215057bf0da2659056b4bc033873db"
           ;;
         *)
@@ -137,18 +133,44 @@ if [[ ! -x "$ACTIONLINT_BIN" ]]; then
       esac
       ;;
     *)
-      echo "lint: unsupported OS for actionlint download: $os" >&2
+      echo "lint: actionlint auto-download unsupported on $os." >&2
       exit 1
       ;;
   esac
-  curl -fsSL -o "$CACHE_DIR/$tarball" \
-    "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
-  if [[ "$os" == "Linux" ]]; then
-    echo "${expected_sha256}  $CACHE_DIR/$tarball" | sha256sum -c -
-  else
-    echo "${expected_sha256}  $CACHE_DIR/$tarball" | shasum -a 256 -c -
+  if [[ ! -f "$cache_dir/$tarball" ]]; then
+    echo "lint: downloading actionlint ${version}..." >&2
+    curl -fsSL -o "$cache_dir/$tarball" \
+      "https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
   fi
-  tar -xzf "$CACHE_DIR/$tarball" -C "$CACHE_DIR"
-fi
+  if [[ ! -d "$extract_dir" ]]; then
+    if [[ "$os" == "Linux" ]]; then
+      echo "${expected_sha256}  $cache_dir/$tarball" | sha256sum -c -
+    else
+      echo "${expected_sha256}  $cache_dir/$tarball" | shasum -a 256 -c -
+    fi
+    mkdir -p "$extract_dir"
+    tar -xzf "$cache_dir/$tarball" -C "$extract_dir"
+  fi
+  cp "$extract_dir/actionlint" "$bin"
+  chmod +x "$bin"
+  ACTIONLINT_BIN="$bin"
+}
+
+ensure_shellcheck
+ensure_actionlint
+
+# actionlint shells out to shellcheck for workflow run: scripts; use our pinned binary.
+_shellcheck_dir="$ROOT/.cache/shellcheck/shellcheck-${SHELLCHECK_VERSION}"
+export PATH="${_shellcheck_dir}:${PATH}"
+
+echo "lint: shellcheck ${SHELLCHECK_VERSION} ($("$SHELLCHECK_BIN" --version | head -1))" >&2
+echo "lint: actionlint ${ACTIONLINT_VERSION} ($("$ACTIONLINT_BIN" -version | head -1))" >&2
+
+"$SHELLCHECK_BIN" -x \
+  .github/workflows/assets/env.sh \
+  .github/workflows/assets/lib.sh \
+  .github/workflows/assets/translation.sh \
+  scripts/*.sh \
+  tests/helpers/*.bash
 
 "$ACTIONLINT_BIN" -color

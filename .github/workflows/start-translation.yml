@@ -49,12 +49,9 @@ jobs:
           LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
         run: |
           set -euo pipefail
-          [[ -z "${LANG_CODES:-}" ]] && {
-            echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
-            exit 1
-          }
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          require_lang_codes
           mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
           [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
             echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
@@ -222,6 +219,14 @@ jobs:
           NO_DOC_PATHS=()
           ORG_REPO_MISSING=()
 
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          validate_secrets weblate
+          # shellcheck source=assets/translation.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
           BOOST_WORK="$WORK_DIR/boost"
@@ -230,13 +235,6 @@ jobs:
 
           gh auth setup-git
 
-          # shellcheck source=assets/env.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
-          # shellcheck source=assets/lib.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          # shellcheck source=assets/translation.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
-
           # shellcheck disable=SC2153
           libs_ref="${LIBS_REF:?}"
 
@@ -244,7 +242,8 @@ jobs:
           mkdir -p "$ORG_WORK"
 
           trigger_weblate() {
-            local weblate_url="$1" weblate_token="$2" libs_ref="$3" exts_json="$4"
+            # Locals differ from WEBLATE_* env names to avoid ShellCheck SC2153 misspelling hints.
+            local api_base_url="$1" api_token="$2" libs_ref="$3" exts_json="$4"
 
             local subs="${add_or_update[$LANG_CODE]:-}"
             [[ -z "$subs" ]] && {
@@ -275,11 +274,11 @@ jobs:
             local resp http_code curl_exit=0
             resp=$(mktemp)
             http_code=$(curl -sS -o "$resp" -w "%{http_code}" --max-time 120 -X POST \
-              -H "Authorization: Token $weblate_token" \
+              -H "Authorization: Token $api_token" \
               -H "Content-Type: application/json" \
               -H "User-Agent: BoostDocsSync/1.0" \
               -d "$payload" \
-              "${weblate_url%/}/boost-endpoint/add-or-update/" \
+              "${api_base_url%/}/boost-endpoint/add-or-update/" \
             ) || curl_exit=$?
 
             if [[ $curl_exit -ne 0 ]]; then

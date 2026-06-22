@@ -1,7 +1,10 @@
 # shellcheck shell=bash
 # Shared shell library for add-submodules and start-translation workflows.
-# Source this file after setting: ORG, MODULE_ORG, BOT_NAME, BOT_EMAIL, BOOST_ORG, MASTER_BRANCH,
-# TRANSLATIONS_REPO, TRANS_DIR, GITHUB_WORKSPACE, UPDATES (array).
+# Source env.sh before lib.sh so ORG, MODULE_ORG, BOT_NAME, BOT_EMAIL, BOOST_ORG, MASTER_BRANCH,
+# and TRANSLATIONS_REPO are set. Workflows also set GITHUB_TOKEN, LANG_CODES, and (for
+# start-translation) WEBLATE_URL / WEBLATE_TOKEN in the step env before sourcing.
+# Call validate_secrets (or validate_secrets weblate) after sourcing env.sh and lib.sh.
+# require_lang_codes may be called after sourcing lib.sh alone (early validation step).
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -260,5 +263,43 @@ validate_lang_codes() {
     echo "Error: invalid language code(s): ${invalid[*]}" >&2
     echo "Expected ISO 639-1/2/3 or BCP 47 (e.g. en, zh_Hans, pt_BR)." >&2
     exit 1
+  fi
+}
+
+# Exit 1 if LANG_CODES workflow env is unset or empty.
+require_lang_codes() {
+  [[ -n "${LANG_CODES:-}" ]] || {
+    echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
+    exit 1
+  }
+}
+
+# Exit 1 if a named variable is unset or empty.
+_require_nonempty() {
+  local var_name="$1" err_msg="$2"
+  # :- keeps indirect expansion safe under set -u when the named var is unset.
+  [[ -n "${!var_name:-}" ]] || { echo "$err_msg" >&2; exit 1; }
+}
+
+# validate_secrets [weblate]
+# Call after: source env.sh && source lib.sh
+# Reads workflow env + env.sh globals; exits 1 with a clear message on first failure.
+validate_secrets() {
+  local require_weblate=0
+  [[ "${1:-}" == "weblate" ]] && require_weblate=1
+
+  _require_nonempty GITHUB_TOKEN "Error: SYNC_TOKEN secret is not set."
+  require_lang_codes
+  _require_nonempty ORG "Error: ORG is not set."
+  _require_nonempty MODULE_ORG "Error: MODULE_ORG is not set."
+  _require_nonempty BOT_NAME "Error: BOT_NAME is not set."
+  _require_nonempty BOT_EMAIL "Error: BOT_EMAIL is not set."
+  _require_nonempty BOOST_ORG "Error: BOOST_ORG is not set."
+  _require_nonempty MASTER_BRANCH "Error: MASTER_BRANCH is not set."
+  _require_nonempty TRANSLATIONS_REPO "Error: TRANSLATIONS_REPO is not set."
+
+  if [[ "$require_weblate" -eq 1 ]]; then
+    _require_nonempty WEBLATE_URL "Error: WEBLATE_URL secret is not set."
+    _require_nonempty WEBLATE_TOKEN "Error: WEBLATE_TOKEN secret is not set."
   fi
 }

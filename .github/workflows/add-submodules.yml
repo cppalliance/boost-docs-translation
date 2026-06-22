@@ -34,12 +34,9 @@ jobs:
           LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
         run: |
           set -euo pipefail
-          [[ -z "${LANG_CODES:-}" ]] && {
-            echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
-            exit 1
-          }
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          require_lang_codes
           mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
           [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
             echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
@@ -57,21 +54,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          [[ -z "${GITHUB_TOKEN:-}" ]] && {
-            echo "Error: SYNC_TOKEN secret is not set." >&2
-            exit 1
-          }
-
-          [[ -z "${LANG_CODES:-}" ]] && {
-            echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
-            exit 1
-          }
-
           UPDATES=()
           # Summary buckets (doc metadata / skips); printed after Step 2.
           META_MISSING=()
           NO_DOC_PATHS=()
           REPO_EXISTS_SKIP=()
+
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          validate_secrets
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
@@ -82,11 +75,6 @@ jobs:
           # Configure git credential helper so all github.com pushes are authenticated
           # without embedding tokens in remote URLs.
           gh auth setup-git
-
-          # shellcheck source=assets/env.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
-          # shellcheck source=assets/lib.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
           # LIBS_REF: workflow env
           # shellcheck disable=SC2153
