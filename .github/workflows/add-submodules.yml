@@ -108,7 +108,7 @@ jobs:
             git -C "$sub_clone" push -u origin "$MASTER_BRANCH" || return 2
             git -C "$sub_clone" push origin "$MASTER_BRANCH" || return 2
             for lang_code in "${lang_codes_arr[@]}"; do
-              local local_br="local-${lang_code}"
+              local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
               git -C "$sub_clone" checkout -B "$local_br" "$MASTER_BRANCH" || return 2
               add_create_tag_workflow "$sub_clone" || return 2
               git -C "$sub_clone" push -u origin "$local_br" || return 2

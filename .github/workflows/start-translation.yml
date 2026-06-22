@@ -75,7 +75,11 @@ jobs:
           persist-credentials: false
 
       - name: Checkout master for .gitmodules
-        run: git checkout master
+        run: |
+          set -euo pipefail
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          git checkout "$MASTER_BRANCH"
 
       - name: Sync mirror master
         shell: bash
@@ -182,7 +186,11 @@ jobs:
           persist-credentials: false
 
       - name: Checkout master for .gitmodules
-        run: git checkout master
+        run: |
+          set -euo pipefail
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          git checkout "$MASTER_BRANCH"
 
       - name: Start translation for ${{ matrix.lang }}
         shell: bash
@@ -278,7 +286,7 @@ jobs:
               -H "Content-Type: application/json" \
               -H "User-Agent: BoostDocsSync/1.0" \
               -d "$payload" \
-              "${api_base_url%/}/boost-endpoint/add-or-update/" \
+              "${api_base_url%/}/${WEBLATE_ENDPOINT_PATH}" \
             ) || curl_exit=$?
 
             if [[ $curl_exit -ne 0 ]]; then

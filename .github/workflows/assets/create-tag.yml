@@ -8,6 +8,7 @@ name: create-tag
 on:
   pull_request:
     types: [closed]
+    # Must match "${LOCAL_BRANCH_PREFIX}*" — see assets/env.sh (YAML cannot source shell).
     branches: ["local-*"]
 
 permissions:
@@ -16,6 +17,7 @@ permissions:
 jobs:
   create-tag:
     runs-on: ubuntu-latest
+    # head ref must start with TRANSLATION_BRANCH_PREFIX — see assets/env.sh.
     if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'translation-')
     steps:
       - name: Extract version and lang_code from branches
@@ -27,11 +29,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+
           # lang_code from base branch: local-zh_Hans -> zh_Hans
-          LANG_CODE="${BASE_REF#local-}"
+          LANG_CODE="${BASE_REF#"${LOCAL_BRANCH_PREFIX}"}"
 
           # version from head branch: translation-zh_Hans-boost-1.90.0 -> strip prefix -> boost-1.90.0
-          prefix="translation-${LANG_CODE}-"
+          prefix="${TRANSLATION_BRANCH_PREFIX}${LANG_CODE}-"
           if [[ "$HEAD_REF" != "${prefix}"* ]]; then
             echo "Error: head ref '$HEAD_REF' does not start with expected prefix '$prefix'" >&2
             exit 1

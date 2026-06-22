@@ -172,7 +172,7 @@ setup() {
 
   finalize_translations_master "$trans_dir" "develop"
   [ "${#SYNC_CALLS[@]}" -eq 1 ]
-  [ "${SYNC_CALLS[0]}" = "branch=master force=false" ]
+  [ "${SYNC_CALLS[0]}" = "branch=${MASTER_BRANCH} force=false" ]
 
   cleanup_git_fixture_root
 }
@@ -191,7 +191,7 @@ setup() {
 
   finalize_translations_local "$trans_dir" "develop" "en"
   [ "${#SYNC_CALLS[@]}" -eq 1 ]
-  [ "${SYNC_CALLS[0]}" = "branch=local-en force=true" ]
+  [ "${SYNC_CALLS[0]}" = "branch=${LOCAL_BRANCH_PREFIX}en force=true" ]
 
   cleanup_git_fixture_root
 }
@@ -210,9 +210,9 @@ setup() {
 
   finalize_translations_repo "$trans_dir" "develop" "en" "zh_Hans"
   [ "${#SYNC_CALLS[@]}" -eq 3 ]
-  [ "${SYNC_CALLS[0]}" = "branch=master force=false" ]
-  [ "${SYNC_CALLS[1]}" = "branch=local-en force=true" ]
-  [ "${SYNC_CALLS[2]}" = "branch=local-zh_Hans force=true" ]
+  [ "${SYNC_CALLS[0]}" = "branch=${MASTER_BRANCH} force=false" ]
+  [ "${SYNC_CALLS[1]}" = "branch=${LOCAL_BRANCH_PREFIX}en force=true" ]
+  [ "${SYNC_CALLS[2]}" = "branch=${LOCAL_BRANCH_PREFIX}zh_Hans force=true" ]
 
   cleanup_git_fixture_root
 }

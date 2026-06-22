@@ -53,7 +53,6 @@ init_process_globals() {
   reset_process_globals
   # Fixed values so tests behave the same locally and in CI (GITHUB_REPOSITORY varies).
   MODULE_ORG="testorg"
-  MASTER_BRANCH="master"
   BOOST_ORG="boostorg"
   libs_ref="develop"
   lang_codes_arr=("en")

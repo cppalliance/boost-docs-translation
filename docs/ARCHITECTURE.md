@@ -17,15 +17,15 @@ branches, and automation that does not clobber in-progress translator submission
 - **Mirror** each relevant library’s documentation into a dedicated GitHub repo under
   a configurable org (**`MODULE_ORG`**, from **`SUBMODULES_ORG`**).
 - **Super-repo** (**this repository**): one checkout that pins exact commits of every
-  mirrored lib via **`libs/<name>`** submodules on **`master`** and on
-  **`local-{lang_code}`** branches.
-- **Upstream sync**: refresh mirror **`master`** from **`boostorg`** at a chosen ref,
-  then fold changes into **`local-*`** when safe.
+  mirrored lib via **`libs/<name>`** submodules on **`MASTER_BRANCH`** and on
+  **`${LOCAL_BRANCH_PREFIX}{lang_code}`** branches.
+- **Upstream sync**: refresh mirror **`MASTER_BRANCH`** from **`boostorg`** at a chosen ref,
+  then fold changes into **`${LOCAL_BRANCH_PREFIX}*`** when safe.
 - **Weblate handoff**: after successful git updates, tell the translation server which
   org, version, languages, and components changed so it can add or refresh projects
   asynchronously.
-- **Consumer branches**: keep every **`local-*`** branch in the super-repo pointing at
-  the latest **`local-*`** tip of each submodule (scheduled **`sync-translation`**).
+- **Consumer branches**: keep every **`${LOCAL_BRANCH_PREFIX}*`** branch in the super-repo pointing at
+  the latest **`${LOCAL_BRANCH_PREFIX}*`** tip of each submodule (scheduled **`sync-translation`**).
 
 Non-goals: building Boost, serving rendered HTML from this repo, or replacing
 Weblate’s internal project configuration beyond the **`add-or-update`** contract.
@@ -53,11 +53,11 @@ flowchart LR
   end
 
   subgraph super [Translations super-repo]
-    TR[this repo master and local-*]
+    TR["this repo MASTER_BRANCH and LOCAL_BRANCH_PREFIX*"]
   end
 
   subgraph tw [Weblate]
-    EP["POST .../boost-endpoint/add-or-update/"]
+    EP["POST .../${WEBLATE_ENDPOINT_PATH}"]
   end
 
   BB --> AS
@@ -78,7 +78,7 @@ flowchart LR
 **Legend.** **`add-submodules`** may discover names from **`boostorg/boost`**;
 **`start-translation`** discovers names from **this repo’s `.gitmodules`**. Both
 mutate mirror repos and then update the super-repo. **`sync-translation`** only
-moves submodule SHAs on existing **`local-*`** branches.
+moves submodule SHAs on existing **`${LOCAL_BRANCH_PREFIX}*`** branches.
 
 ---
 
@@ -90,7 +90,7 @@ moves submodule SHAs on existing **`local-*`** branches.
 | **`.github/workflows/add-submodules.yml`** | On dispatch: create missing mirrors, push **`master`** / **`local-*`**, install **`create-tag.yml`**, record submodules in the super-repo. |
 | **`.github/workflows/start-translation.yml`** | On dispatch: **`setup`** → **`sync-mirrors`** → **`start-local`** matrix (per lang); sync mirrors, merge policy on **`local-*`**, update super-repo pointers, call Weblate. |
 | **`.github/workflows/sync-translation.yml`** | On dispatch or schedule: **`discover`** → **`sync-local`** matrix (per lang); **`submodule update --remote`** and force-push per **`local-*`**. |
-| **`.github/workflows/assets/env.sh`** | Derives **`ORG`**, **`TRANSLATIONS_REPO`**, **`MODULE_ORG`**, **`BOOST_ORG`**, **`MASTER_BRANCH`**, bot identity. |
+| **`.github/workflows/assets/env.sh`** | Derives **`ORG`**, **`TRANSLATIONS_REPO`**, **`MODULE_ORG`**, **`BOOST_ORG`**, **`MASTER_BRANCH`**, **`LOCAL_BRANCH_PREFIX`**, **`TRANSLATION_BRANCH_PREFIX`**, **`WEBLATE_ENDPOINT_PATH`**, bot identity. |
 | **`.github/workflows/assets/lib.sh`** | Shared implementation: GitHub **`gh`** helpers, clone/prune, **`meta/libraries.json`** parsing, translations-repo branch and submodule updates. |
 | **`.github/workflows/assets/create-tag.yml`** | Template copied into each mirror; tags merged Weblate PRs (see **assets/README.md**). |
 | **`scripts/trigger-*.sh`** | Optional local wrappers around **`repository_dispatch`**; no server-side logic. |
@@ -106,9 +106,11 @@ moves submodule SHAs on existing **`local-*`** branches.
 
 | Branch | Where | Meaning |
 |--------|--------|---------|
-| **`master`** | Mirror and super-repo | Doc-only content aligned with upstream English sources for the synced ref. |
-| **`local-{lang_code}`** | Mirror and super-repo | Translation line for **`lang_code`**; Weblate opens PRs from **`translation-{lang_code}-*`** into this branch on mirrors. |
-| **`translation-{lang_code}-{version}`** | Mirror (head of PR) | Weblate working branch naming assumed by **`start-translation`** (open PR guard) and **`create-tag.yml`** (tag extraction). |
+| **`MASTER_BRANCH`** (`master`) | Mirror and super-repo | Doc-only content aligned with upstream English sources for the synced ref. |
+| **`${LOCAL_BRANCH_PREFIX}{lang_code}`** | Mirror and super-repo | Translation line for **`lang_code`**; Weblate opens PRs from **`${TRANSLATION_BRANCH_PREFIX}{lang_code}-*`** into this branch on mirrors. |
+| **`${TRANSLATION_BRANCH_PREFIX}{lang_code}-{version}`** | Mirror (head of PR) | Weblate working branch naming assumed by **`start-translation`** (open PR guard) and **`create-tag.yml`** (tag extraction). |
+
+Constants **`MASTER_BRANCH`**, **`LOCAL_BRANCH_PREFIX`**, and **`TRANSLATION_BRANCH_PREFIX`** are defined in **`.github/workflows/assets/env.sh`**.
 
 **Super-repo `local-*` vs mirror `local-*`.** The super-repo’s **`local-*`** branch
 commits **submodule pointers** that track each mirror’s **`local-*`** (after
@@ -135,7 +137,7 @@ holds **actual file** merges from **`master`** plus translator edits.
 
 1. **`setup`**: validate language codes; emit JSON for the matrix.
 2. **`sync-mirrors`** (serialized via **`translations-mirror-master`**): submodule names from **this** repo **`.gitmodules`** (**`libs/`** only); per lib, clone upstream and mirror, replace mirror **`master`** tree with pruned upstream snapshot, push; **`finalize_translations_master`** on the super-repo.
-3. **`start-local`** (matrix per **`lang_code`**, concurrency **`local-branch-{lang_code}`**): per lib, create or merge **`local-*`** in mirrors when no open **`translation-{lang_code}-*`** PR; **`finalize_translations_local`** for that language; build **`add_or_update`** for that lang; **POST** to Weblate **`boost-endpoint`**; tolerate **202** (async) or **200**.
+3. **`start-local`** (matrix per **`lang_code`**, concurrency **`local-branch-{lang_code}`**): per lib, create or merge **`${LOCAL_BRANCH_PREFIX}*`** in mirrors when no open **`${TRANSLATION_BRANCH_PREFIX}{lang_code}-*`** PR; **`finalize_translations_local`** for that language; build **`add_or_update`** for that lang; **POST** to **`${WEBLATE_ENDPOINT_PATH}`**; tolerate **202** (async) or **200**.
 
 ### 5.3 Pointer roll-up (**`sync-translation`**)
 
@@ -173,9 +175,10 @@ share one credential. **`WEBLATE_TOKEN`** is only used for the outbound HTTP cal
 **Observability.** Shell steps echo progress to Actions logs; Weblate response bodies
 are printed for **`start-translation`** on success or failure paths where implemented.
 
-**Configuration surface.** **`env.sh`** centralizes org and branch constants; workflow
-YAML supplies **`LIBS_REF`**, **`LANG_CODES`**, **`EXTENSIONS`**, and secrets so
-behavior is traceable without reading the entire inline script.
+**Configuration surface.** **`env.sh`** centralizes org and branch constants
+(**`MASTER_BRANCH`**, **`LOCAL_BRANCH_PREFIX`**, **`TRANSLATION_BRANCH_PREFIX`**,
+**`WEBLATE_ENDPOINT_PATH`**); workflow YAML supplies **`LIBS_REF`**, **`LANG_CODES`**,
+**`EXTENSIONS`**, and secrets so behavior is traceable without reading the entire inline script.
 
 ---
 

@@ -22,7 +22,7 @@ sync_repo_master() {
 # Merge master into local-{lang_code} and push.
 update_local_merge_from_master() {
   local repo_dir="$1" lang_code="$2"
-  local local_br="local-${lang_code}"
+  local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
   git -C "$repo_dir" fetch origin "$MASTER_BRANCH" || return 2
   git -C "$repo_dir" fetch origin "$local_br" || return 2
   git -C "$repo_dir" checkout -B "$local_br" "origin/$local_br" || return 2
@@ -33,7 +33,7 @@ update_local_merge_from_master() {
 # Create local-{lang_code} in a library mirror repo from master, with create-tag.yml.
 ensure_local_branch_in_repo() {
   local dest_repo="$1" sub_name="$2" lang_code="$3"
-  local local_br="local-${lang_code}"
+  local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
   if git -C "$dest_repo" ls-remote --exit-code --heads origin "$local_br" &>/dev/null; then
     echo "  Branch $local_br already exists in $sub_name." >&2
     return 0
@@ -50,7 +50,7 @@ ensure_local_branch_in_repo() {
 # Returns 0 if submodule should be added to add_or_update[lang_code]; 1 if skipped (open PR); 2 on git failure.
 process_local_branch() {
   local dest_repo="$1" sub_name="$2" lang_code="$3"
-  local local_br="local-${lang_code}"
+  local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
   if git -C "$dest_repo" ls-remote --exit-code --heads origin "$local_br" &>/dev/null; then
     has_open_translation_pr "$MODULE_ORG" "$sub_name" "$lang_code"
     case $? in

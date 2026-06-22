@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Trigger the GitHub Actions workflow add-submodules.yml via repository_dispatch.
 #
+# Branch/endpoint naming constants: LOCAL_BRANCH_PREFIX, TRANSLATION_BRANCH_PREFIX,
+# MASTER_BRANCH in .github/workflows/assets/env.sh.
+#
 # Requires: curl; jq or Python 3 (python3 / python) to build JSON
 # Auth: repo-root .env (GH_TOKEN / GITHUB_TOKEN), env, or --token (repo scope for the target repo).
 #
@@ -19,6 +22,8 @@ if [[ -f "$_REPO_ROOT/.env" ]]; then
   source "$_REPO_ROOT/.env"
   set +a
 fi
+# shellcheck source=/dev/null
+source "$_REPO_ROOT/.github/workflows/assets/env.sh"
 unset _REPO_ROOT
 
 # ---------------------------------------------------------------------------
