@@ -42,6 +42,9 @@ install_algorithm_process_fixtures() {
 
   create_bare_remote_with_clone "mirror-algorithm"
   mirror_bare="$BARE_REMOTE"
+  if [[ "$MASTER_BRANCH" != master ]]; then
+    create_remote_branch "$mirror_bare" "$MASTER_BRANCH" master
+  fi
   create_remote_branch "$mirror_bare" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
 
   CLONE_URLS=()
