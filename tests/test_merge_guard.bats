@@ -15,7 +15,7 @@ teardown() {
 }
 
 @test "has_open_translation_pr: returns true when open PR exists" {
-  export MOCK_PR_LIST_STDOUT="translation-zh_Hans-foo"
+  export MOCK_PR_LIST_STDOUT="${TRANSLATION_BRANCH_PREFIX}zh_Hans-foo"
 
   run has_open_translation_pr "testorg" "algorithm" "zh_Hans"
   [ "$status" -eq 0 ]
@@ -46,11 +46,11 @@ teardown() {
   init_process_globals
 
   create_bare_remote_with_clone "mirror"
-  create_remote_branch "$BARE_REMOTE" "local-en" "master"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
   dest_repo="$GIT_FIXTURE_ROOT/mirror-clone"
   git clone "$BARE_REMOTE" "$dest_repo"
 
-  export MOCK_PR_LIST_STDOUT="translation-en-abc123"
+  export MOCK_PR_LIST_STDOUT="${TRANSLATION_BRANCH_PREFIX}en-abc123"
 
   run process_local_branch "$dest_repo" "algorithm" "en"
   [ "$status" -eq 1 ]
@@ -66,7 +66,7 @@ teardown() {
   init_process_globals
 
   create_bare_remote_with_clone "mirror"
-  create_remote_branch "$BARE_REMOTE" "local-en" "master"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
   dest_repo="$GIT_FIXTURE_ROOT/mirror-clone"
   git clone "$BARE_REMOTE" "$dest_repo"
 
