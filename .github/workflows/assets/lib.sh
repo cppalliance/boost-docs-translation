@@ -4,7 +4,6 @@
 # and TRANSLATIONS_REPO are set. Workflows also set GITHUB_TOKEN, LANG_CODES, and (for
 # start-translation) WEBLATE_URL / WEBLATE_TOKEN in the step env before sourcing.
 # Call validate_secrets (or validate_secrets weblate) after sourcing env.sh and lib.sh.
-# require_lang_codes may be called after sourcing lib.sh alone (early validation step).
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -272,6 +271,17 @@ require_lang_codes() {
     echo "Error: lang_codes not set in client_payload or vars.LANG_CODES." >&2
     exit 1
   }
+}
+
+# Read LANG_CODES env, populate global lang_codes_arr, exit 1 on missing/empty/invalid.
+parse_and_validate_lang_codes() {
+  require_lang_codes
+  mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
+  [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
+    echo "Error: LANG_CODES parsed to empty list." >&2
+    exit 1
+  }
+  validate_lang_codes "${lang_codes_arr[@]}"
 }
 
 # Exit 1 if a named variable is unset or empty.

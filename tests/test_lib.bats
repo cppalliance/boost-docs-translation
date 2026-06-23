@@ -67,6 +67,28 @@ setup() {
   ! is_valid_lang_code "a"
 }
 
+@test "parse_and_validate_lang_codes: valid LANG_CODES populates lang_codes_arr" {
+  LANG_CODES="zh_Hans,en"
+  parse_and_validate_lang_codes
+  [ "${#lang_codes_arr[@]}" -eq 2 ]
+  [ "${lang_codes_arr[0]}" = "zh_Hans" ]
+  [ "${lang_codes_arr[1]}" = "en" ]
+}
+
+@test "parse_and_validate_lang_codes: missing LANG_CODES exits 1" {
+  unset LANG_CODES
+  run parse_and_validate_lang_codes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"lang_codes not set"* ]]
+}
+
+@test "parse_and_validate_lang_codes: invalid code exits 1" {
+  LANG_CODES="en US"
+  run parse_and_validate_lang_codes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"invalid language code"* ]]
+}
+
 @test "get_doc_paths: single-library repo emits doc" {
   # shellcheck source=tests/helpers/mock_gh.bash
   source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"

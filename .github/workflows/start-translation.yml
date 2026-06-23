@@ -43,7 +43,7 @@ jobs:
           token: ${{ secrets.SYNC_TOKEN }}
           persist-credentials: false
 
-      - name: Validate language codes
+      - name: Prepare language matrix
         id: langs
         env:
           LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
@@ -51,12 +51,7 @@ jobs:
           set -euo pipefail
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          require_lang_codes
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
+          parse_and_validate_lang_codes
           langs_json=$(printf '%s\n' "${lang_codes_arr[@]}" | jq -R . | jq -s -c .)
           echo "json=$langs_json" >> "$GITHUB_OUTPUT"
           echo "Lang codes: ${lang_codes_arr[*]}" >&2
@@ -307,7 +302,6 @@ jobs:
             rm -f "$resp"
           }
 
-          validate_lang_codes "$LANG_CODE"
           echo "Lang code: $LANG_CODE" >&2
 
           # Read by process_one_submodule in translation.sh (sourced above).

@@ -106,8 +106,6 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
-          validate_lang_codes "$SYNC_LANG"
-
           git config user.name "$BOT_NAME"
           git config user.email "$BOT_EMAIL"
 

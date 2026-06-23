@@ -29,20 +29,6 @@ jobs:
         with:
           token: ${{ secrets.SYNC_TOKEN }}
 
-      - name: Validate language codes
-        env:
-          LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
-        run: |
-          set -euo pipefail
-          # shellcheck source=assets/lib.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          require_lang_codes
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
-
       - name: Add submodules
         shell: bash
         env:
@@ -65,6 +51,8 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           validate_secrets
+          parse_and_validate_lang_codes
+          echo "Lang codes: ${lang_codes_arr[*]}" >&2
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
@@ -148,13 +136,6 @@ jobs:
           }
 
           # ── Main ─────────────────────────────────────────────────────────────
-
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
-          echo "Lang codes: ${lang_codes_arr[*]}" >&2
 
           # ── Step 1: ensure TRANSLATIONS_REPO has local-{lang_code} branches ──
 
