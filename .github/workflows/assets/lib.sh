@@ -7,6 +7,37 @@
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
+CURRENT_PHASE=""
+
+begin_phase() {
+  CURRENT_PHASE="$1"
+  echo "::group::[$1] ${2:-}"
+}
+
+end_phase() {
+  echo "::endgroup::"
+  CURRENT_PHASE=""
+}
+
+phase_err() {
+  echo "Error: [${CURRENT_PHASE:-unknown}] $*" >&2
+}
+
+is_valid_event_type() {
+  local et="$1" v
+  for v in "${VALID_EVENT_TYPES[@]}"; do
+    [[ "$et" == "$v" ]] && return 0
+  done
+  return 1
+}
+
+validate_event_type() {
+  is_valid_event_type "$1" || {
+    phase_err "invalid event_type='$1'; expected one of: ${VALID_EVENT_TYPES[*]}"
+    exit 1
+  }
+}
+
 set_git_bot_config() {
   git -C "$1" config user.email "$BOT_EMAIL"
   git -C "$1" config user.name "$BOT_NAME"
@@ -299,7 +330,11 @@ validate_secrets() {
   [[ "${1:-}" == "weblate" ]] && require_weblate=1
 
   _require_nonempty GITHUB_TOKEN "Error: SYNC_TOKEN secret is not set."
-  require_lang_codes
+  if [[ -n "${LANG_CODE:-}" ]]; then
+    validate_lang_codes "$LANG_CODE"
+  else
+    require_lang_codes
+  fi
   _require_nonempty ORG "Error: ORG is not set."
   _require_nonempty MODULE_ORG "Error: MODULE_ORG is not set."
   _require_nonempty BOT_NAME "Error: BOT_NAME is not set."

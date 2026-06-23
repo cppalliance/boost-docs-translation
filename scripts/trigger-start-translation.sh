@@ -24,6 +24,13 @@ if [[ -f "$_REPO_ROOT/.env" ]]; then
 fi
 unset _REPO_ROOT
 
+_ASSETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.github/workflows/assets"
+# shellcheck source=/dev/null
+source "$_ASSETS_DIR/env.sh"
+# shellcheck source=/dev/null
+source "$_ASSETS_DIR/lib.sh"
+unset _ASSETS_DIR
+
 # ---------------------------------------------------------------------------
 # Typical run — edit defaults below. CLI flags override.
 # Omit lang_codes in payload when unset → workflow vars.LANG_CODES.
@@ -91,11 +98,12 @@ dispatch_json() {
   local version="$1" lang_codes="$2" extensions="$3"
   if command -v jq >/dev/null 2>&1; then
     jq -n \
+      --arg event_type "$EVENT_START_TRANSLATION" \
       --arg version "$version" \
       --arg lang_codes "$lang_codes" \
       --arg extensions "$extensions" \
       '{
-        event_type: "start-translation",
+        event_type: $event_type,
         client_payload: (
           {}
           | if ($version | length) > 0 then . + {version: $version} else . end
@@ -109,8 +117,8 @@ dispatch_json() {
   command -v python3 >/dev/null 2>&1 && py="python3"
   [[ -z "$py" ]] && command -v python >/dev/null 2>&1 && py="python"
   if [[ -n "$py" ]]; then
-    "$py" -c "import json,sys; v,lc,ex=sys.argv[1:4]; d={k:x for k,x in (('version',v),('lang_codes',lc),('extensions',ex)) if x}; print(json.dumps({'event_type':'start-translation','client_payload':d}))" \
-      "$version" "$lang_codes" "$extensions"
+    "$py" -c "import json,sys; et,v,lc,ex=sys.argv[1:5]; d={k:x for k,x in (('version',v),('lang_codes',lc),('extensions',ex)) if x}; print(json.dumps({'event_type':et,'client_payload':d}))" \
+      "$EVENT_START_TRANSLATION" "$version" "$lang_codes" "$extensions"
     return 0
   fi
   return 1
@@ -152,6 +160,8 @@ fi
 
 VERSION="${VERSION:-$DEFAULT_VERSION}"
 EXTENSIONS="${EXTENSIONS:-$DEFAULT_EXTENSIONS}"
+
+validate_event_type "$EVENT_START_TRANSLATION"
 
 body="$(dispatch_json "$VERSION" "$LANG_CODES" "$EXTENSIONS")" || {
   echo "error: install jq, or Python 3 (python3 or python on PATH), to build the request JSON" >&2

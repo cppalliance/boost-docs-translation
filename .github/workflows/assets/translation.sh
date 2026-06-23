@@ -69,9 +69,9 @@ process_one_submodule() {
   local phase="${START_PHASE:-}"
 
   case "$phase" in
-    ""|mirrors|local) ;;
+    ""|"${START_PHASE_MIRRORS}"|"${START_PHASE_LOCAL}") ;;
     *)
-      echo "Error: invalid START_PHASE='$phase'; expected mirrors, local, or unset." >&2
+      echo "Error: [${CURRENT_PHASE:-$PHASE_PROCESS_SUBMODULES}] invalid START_PHASE='$phase'; expected ${START_PHASE_MIRRORS}, ${START_PHASE_LOCAL}, or unset." >&2
       return 2
       ;;
   esac
@@ -94,7 +94,7 @@ process_one_submodule() {
   local org_repo_url="https://github.com/${MODULE_ORG}/${sub_name}.git"
   local dest_repo="$ORG_WORK/$sub_name"
 
-  if [[ "$phase" != "local" ]]; then
+  if [[ "$phase" != "${START_PHASE_LOCAL}" ]]; then
     local sub_clone="$BOOST_WORK/$sub_name"
     clone_repo "https://github.com/${BOOST_ORG}/${sub_name}.git" \
       "$libs_ref" "$sub_clone" || { echo "  Clone failed." >&2; return 2; }
@@ -109,7 +109,7 @@ process_one_submodule() {
 
     sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref" || return 2
 
-    if [[ "$phase" == "mirrors" ]]; then
+    if [[ "$phase" == "${START_PHASE_MIRRORS}" ]]; then
       return 0
     fi
   else
