@@ -1,11 +1,14 @@
 # boost-docs-translation
 
 Super-repository for Boost library documentation translations: it holds `libs/*`
-submodules that point at per-library mirrors, keeps **`master`** and
-**`local-{lang_code}`** branches aligned with upstream **`boostorg`** sources, and
+submodules that point at per-library mirrors, keeps **`MASTER_BRANCH`** (`master`) and
+**`${LOCAL_BRANCH_PREFIX}{lang_code}`** (e.g. `local-zh_Hans`) branches aligned with upstream **`boostorg`** sources, and
 notifies a Weblate instance when components change. A daily workflow advances
-submodule pointers on every **`local-*`** branch to match each library repo’s
-corresponding **`local-*`** tip.
+submodule pointers on every **`${LOCAL_BRANCH_PREFIX}*`** branch to match each library repo’s
+corresponding **`${LOCAL_BRANCH_PREFIX}*`** tip.
+
+Branch and endpoint path constants are defined in **`.github/workflows/assets/env.sh`**
+(`MASTER_BRANCH`, `LOCAL_BRANCH_PREFIX`, `TRANSLATION_BRANCH_PREFIX`, `WEBLATE_ENDPOINT_PATH`).
 
 The GitHub org used for those library mirrors defaults to **this repository’s
 org**; set repository variable **`SUBMODULES_ORG`** to use a
@@ -40,11 +43,11 @@ For each Boost library name in the resolved list:
    **`SUBMODULES_ORG`** if set, otherwise the translations repo’s org).
 2. Fetches **`meta/libraries.json`** from **`boostorg/{submodule}`** to determine doc
    paths, clones that repo at the given ref, and prunes to doc folders only.
-3. Creates **`{MODULE_ORG}/{submodule}`**, pushes doc content to **`master`**, creates
-   **`local-{lang_code}`** branches for each configured language, and copies
+3. Creates **`{MODULE_ORG}/{submodule}`**, pushes doc content to **`MASTER_BRANCH`**, creates
+   **`${LOCAL_BRANCH_PREFIX}{lang_code}`** branches for each configured language, and copies
    **`create-tag.yml`** from **`.github/workflows/assets/`** into the new repo.
-4. Updates submodule links in this repo under **`libs/`** on **`master`** and each
-   **`local-{lang_code}`** branch.
+4. Updates submodule links in this repo under **`libs/`** on **`MASTER_BRANCH`** and each
+   **`${LOCAL_BRANCH_PREFIX}{lang_code}`** branch.
 
 | `client_payload` field | Required | Description                                                                                                                                                            |
 | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,19 +68,19 @@ For each Boost library name in the resolved list:
 }
 ```
 
-Reads the submodule list from **this repo’s `.gitmodules`** on **`master`** (only
+Reads the submodule list from **this repo’s `.gitmodules`** on **`MASTER_BRANCH`** (only
 **`libs/`** entries). For each language and each submodule:
 
-1. Ensures this repo has a **`local-{lang_code}`** branch.
-2. Syncs **`{MODULE_ORG}/{lib}` `master`** from the upstream **`boostorg`** repo
+1. Ensures this repo has a **`${LOCAL_BRANCH_PREFIX}{lang_code}`** branch.
+2. Syncs **`{MODULE_ORG}/{lib}` `MASTER_BRANCH`** from the upstream **`boostorg`** repo
    (same prune rules as **`add-submodules`**).
-3. In the library repo: creates **`local-{lang_code}`** if missing, or merges
-   **`master`** into it when there is **no** open PR into **`local-{lang_code}`**
-   whose head branch starts with **`translation-{lang_code}-`**; otherwise skips
+3. In the library repo: creates **`${LOCAL_BRANCH_PREFIX}{lang_code}`** if missing, or merges
+   **`MASTER_BRANCH`** into it when there is **no** open PR into **`${LOCAL_BRANCH_PREFIX}{lang_code}`**
+   whose head branch starts with **`${TRANSLATION_BRANCH_PREFIX}{lang_code}-`**; otherwise skips
    that lib for that language so in-flight Weblate work is not overwritten.
-4. Updates submodule pointers here on **`master`** and each **`local-{lang_code}`**
-   branch ( **`local-*`** updates are force-pushed when finalizing).
-5. **POST**s JSON to **`{WEBLATE_URL}/boost-endpoint/add-or-update/`** with
+4. Updates submodule pointers here on **`MASTER_BRANCH`** and each **`${LOCAL_BRANCH_PREFIX}{lang_code}`**
+   branch ( **`${LOCAL_BRANCH_PREFIX}*`** updates are force-pushed when finalizing).
+5. **POST**s JSON to **`{WEBLATE_URL}/${WEBLATE_ENDPOINT_PATH}`** with
    **`organization`**, **`version`**, optional **`extensions`**, and
    **`add_or_update`**: `{lang_code: [submodule names, ...]}` for libs that were
    actually updated for that language. Omits the call if the map would be empty.
@@ -91,7 +94,7 @@ Reads the submodule list from **this repo’s `.gitmodules`** on **`master`** (o
 
 ---
 
-### `sync-translation.yml` — Advance submodule pointers on `local-*` branches
+### `sync-translation.yml` — Advance submodule pointers on `${LOCAL_BRANCH_PREFIX}*` branches
 
 **Trigger:** `repository_dispatch` with `event_type: sync-translation`, or daily schedule (`0 0 * * *`)
 
@@ -99,7 +102,7 @@ Reads the submodule list from **this repo’s `.gitmodules`** on **`master`** (o
 { "event_type": "sync-translation" }
 ```
 
-Discovers all remote **`local-*`** branches in this repo, then for each one: checks
+Discovers all remote **`${LOCAL_BRANCH_PREFIX}*`** branches in this repo, then for each one: checks
 it out with submodules, sets each submodule’s tracking branch to that name,
 runs **`git submodule update --remote`**, commits if pointers changed, and
 **force-pushes** the branch.
@@ -114,8 +117,8 @@ Shared workflow snippets live under **`.github/workflows/assets/`**.
 
 ### `create-tag.yml`
 
-Copied into each library mirror repo when **`local-{lang_code}`** is created.
-When a Weblate PR (**`translation-{lang_code}-{version}`** → **`local-{lang_code}`**)
+Copied into each library mirror repo when **`${LOCAL_BRANCH_PREFIX}{lang_code}`** is created.
+When a Weblate PR (**`${TRANSLATION_BRANCH_PREFIX}{lang_code}-{version}`** → **`${LOCAL_BRANCH_PREFIX}{lang_code}`**)
 is merged, it creates tag **`{version}-{repo}-{lang_code}`** if it does not already
 exist.
 
@@ -124,9 +127,10 @@ branch and tag naming details.
 
 ### `env.sh` and `lib.sh`
 
-Sourced by **`add-submodules`** and **`start-translation`**: org/repo names, clone
-and prune helpers, translations-repo branch setup, submodule pointer updates, and
-list parsing.
+Sourced by **`add-submodules`** and **`start-translation`**: org/repo names, branch prefixes
+(`MASTER_BRANCH`, `LOCAL_BRANCH_PREFIX`, `TRANSLATION_BRANCH_PREFIX`), Weblate path
+(`WEBLATE_ENDPOINT_PATH`), clone and prune helpers, translations-repo branch setup,
+submodule pointer updates, and list parsing.
 
 ---
 
@@ -150,7 +154,7 @@ documented below.
 | Secret          | Used by             | Description                                                                                                                 |
 | --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `SYNC_TOKEN`    | all workflows       | PAT with **`repo`** scope; **`add-submodules`** also needs permission to create org repositories when creating new mirrors. |
-| `WEBLATE_URL`   | `start-translation` | Base URL of the Weblate instance (the workflow appends **`boost-endpoint/add-or-update/`**).                                |
+| `WEBLATE_URL`   | `start-translation` | Base URL of the Weblate instance (the workflow appends **`WEBLATE_ENDPOINT_PATH`**).                                |
 | `WEBLATE_TOKEN` | `start-translation` | API token for that endpoint.                                                                                                |
 
 ## Repository variables

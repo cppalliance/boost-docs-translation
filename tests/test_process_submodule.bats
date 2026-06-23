@@ -28,7 +28,7 @@ teardown() {
 
 # Boost + mirror bare remotes and a clone_repo stub that records URLs.
 install_algorithm_process_fixtures() {
-  libs_ref="master"
+  libs_ref="$MASTER_BRANCH"
   export MOCK_LIBRARIES_FIXTURE="$FIXTURES_DIR/libraries-single.json"
 
   create_bare_remote_with_clone "boost-algorithm"
@@ -38,11 +38,14 @@ install_algorithm_process_fixtures() {
   echo "doc content" >"$boost_work/doc/page.adoc"
   git -C "$boost_work" add doc/
   git -C "$boost_work" commit -m "add doc"
-  git -C "$boost_work" push origin master
+  git -C "$boost_work" push origin "$MASTER_BRANCH"
 
   create_bare_remote_with_clone "mirror-algorithm"
   mirror_bare="$BARE_REMOTE"
-  create_remote_branch "$mirror_bare" "local-en" "master"
+  if [[ "$MASTER_BRANCH" != master ]]; then
+    create_remote_branch "$mirror_bare" "$MASTER_BRANCH" master
+  fi
+  create_remote_branch "$mirror_bare" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
 
   CLONE_URLS=()
   clone_repo() {

@@ -1,8 +1,9 @@
 # shellcheck shell=bash
 # Shared shell library for add-submodules and start-translation workflows.
 # Source env.sh before lib.sh so ORG, MODULE_ORG, BOT_NAME, BOT_EMAIL, BOOST_ORG, MASTER_BRANCH,
-# and TRANSLATIONS_REPO are set. Workflows also set GITHUB_TOKEN, LANG_CODES, and (for
-# start-translation) WEBLATE_URL / WEBLATE_TOKEN in the step env before sourcing.
+# LOCAL_BRANCH_PREFIX, TRANSLATION_BRANCH_PREFIX, WEBLATE_ENDPOINT_PATH, and TRANSLATIONS_REPO
+# are set. Workflows also set GITHUB_TOKEN, LANG_CODES, and (for start-translation)
+# WEBLATE_URL / WEBLATE_TOKEN in the step env before sourcing.
 # Call validate_secrets (or validate_secrets weblate) after sourcing env.sh and lib.sh.
 
 # ── Helpers ──────────────────────────────────────────────────────────
@@ -51,10 +52,10 @@ repo_exists() { gh repo view "$1/$2" &>/dev/null; }
 # "translation-{lang_code}-*"; 1 if none; 2 if the GitHub API check failed.
 has_open_translation_pr() {
   local org="$1" repo="$2" lang_code="$3"
-  local base_br="local-${lang_code}"
+  local base_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
   local output
   if ! output=$(gh pr list --repo "$org/$repo" --state open --base "$base_br" --json headRefName \
-    --jq ".[] | select(.headRefName | startswith(\"translation-${lang_code}-\")) | .headRefName" \
+    --jq ".[] | select(.headRefName | startswith(\"${TRANSLATION_BRANCH_PREFIX}${lang_code}-\")) | .headRefName" \
     2>&1); then
     echo "  Error: could not list open PRs for $org/$repo (base=$base_br): $output" >&2
     return 2
@@ -132,10 +133,12 @@ prune_to_doc_only() {
 # Copy create-tag.yml asset into repo.
 add_create_tag_workflow() {
   local repo_dir="$1" wf_dir="$1/.github/workflows"
-  mkdir -p "$wf_dir"
+  mkdir -p "$wf_dir/assets"
   cp "$GITHUB_WORKSPACE/.github/workflows/assets/create-tag.yml" \
     "$wf_dir/create-tag.yml"
-  git -C "$repo_dir" add ".github/workflows/create-tag.yml"
+  cp "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh" \
+    "$wf_dir/assets/env.sh"
+  git -C "$repo_dir" add ".github/workflows/create-tag.yml" ".github/workflows/assets/env.sh"
   git -C "$repo_dir" commit -m "Add create-tag workflow"
 }
 
@@ -143,7 +146,7 @@ add_create_tag_workflow() {
 
 ensure_local_branch_in_translations() {
   local dir="$1" lang_code="$2"
-  local branch="local-${lang_code}"
+  local branch="${LOCAL_BRANCH_PREFIX}${lang_code}"
   if git -C "$dir" ls-remote --exit-code --heads origin "$branch" &>/dev/null; then
     echo "  Branch $branch already exists in $TRANSLATIONS_REPO." >&2
   else
@@ -230,7 +233,7 @@ finalize_translations_local() {
   local dir="$1" libs_ref="$2" lang_code="$3"
   [[ ${#UPDATES[@]} -eq 0 ]] && return
   git -C "$dir" fetch origin
-  sync_translations_branch "$dir" "local-${lang_code}" "$libs_ref" true
+  sync_translations_branch "$dir" "${LOCAL_BRANCH_PREFIX}${lang_code}" "$libs_ref" true
 }
 
 # Used by add-submodules.yml (start-translation calls finalize_translations_* directly).

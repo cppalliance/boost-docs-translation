@@ -54,7 +54,7 @@ jobs:
 
           begin_phase "$PHASE_DISCOVER" "Discover local-* branches"
           mapfile -t local_branches < <(
-            git ls-remote --heads origin 'refs/heads/local-*' \
+            git ls-remote --heads origin "refs/heads/${LOCAL_BRANCH_PREFIX}*" \
               | awk '{print $2}' | sed 's|refs/heads/||'
           )
 
@@ -69,7 +69,7 @@ jobs:
 
           lang_codes_arr=()
           for branch in "${local_branches[@]}"; do
-            lang_codes_arr+=("${branch#local-}")
+            lang_codes_arr+=("${branch#"${LOCAL_BRANCH_PREFIX}"}")
           done
           validate_lang_codes "${lang_codes_arr[@]}"
 
@@ -113,7 +113,7 @@ jobs:
           git config user.name "$BOT_NAME"
           git config user.email "$BOT_EMAIL"
 
-          branch="local-${SYNC_LANG}"
+          branch="${LOCAL_BRANCH_PREFIX}${SYNC_LANG}"
           begin_phase "$PHASE_SYNC_POINTERS" "Sync pointers on $branch"
           git fetch origin "$branch"
           git checkout -B "$branch" "origin/$branch"

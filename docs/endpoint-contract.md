@@ -84,3 +84,17 @@ flowchart LR
 | Triggers       | `repository_dispatch` **or** schedule **`0 0 * * *`** (daily, UTC).                                     |
 | Body shape     | `{"event_type":"sync-translation"}` — no `client_payload`.                                              |
 | Script in repo | **None** — use the dispatches API, GitHub UI, or another automation with permission to post dispatches. |
+
+---
+
+## Outbound Weblate (`POST …/${WEBLATE_ENDPOINT_PATH}`)
+
+**Purpose:** Notify the Weblate instance which components to add or update after git sync.
+
+| Item       | Value                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| URL        | `{WEBLATE_URL}/${WEBLATE_ENDPOINT_PATH}` — path from **`WEBLATE_ENDPOINT_PATH`** in `env.sh` |
+| Method     | `POST`                                                                                         |
+| Auth       | `Authorization: Token {WEBLATE_TOKEN}`                                                         |
+| Invoked by | `.github/workflows/start-translation.yml` (`start-local` job)                                |
+| Success    | HTTP **200** or **202** (async accepted)                                                       |
