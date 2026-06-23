@@ -171,8 +171,10 @@ jobs:
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations master"
-          finalize_translations_master "$TRANS_DIR" "$LIBS_REF"
+          rc=0
+          finalize_translations_master "$TRANS_DIR" "$LIBS_REF" || rc=$?
           end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           echo "Done." >&2
 
@@ -351,9 +353,13 @@ jobs:
           end_phase
 
           begin_phase "$PHASE_ENSURE_BRANCHES" "Ensure local branch in translations repo"
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
-          ensure_local_branch_in_translations "$TRANS_DIR" "$LANG_CODE"
+          rc=0
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
+          if [[ $rc -eq 0 ]]; then
+            ensure_local_branch_in_translations "$TRANS_DIR" "$LANG_CODE" || rc=$?
+          fi
           end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           begin_phase "$PHASE_PROCESS_SUBMODULES" "Process local branches"
           echo "Processing local branches for ${#submodule_names[@]} submodules." >&2
@@ -384,8 +390,10 @@ jobs:
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations local branch"
-          finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$LANG_CODE"
+          rc=0
+          finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$LANG_CODE" || rc=$?
           end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           begin_phase "$PHASE_TRIGGER_WEBLATE" "Trigger Weblate add-or-update"
           ext_arr=()
@@ -394,7 +402,9 @@ jobs:
           [[ ${#ext_arr[@]} -gt 0 ]] && \
             exts_json=$(printf '%s\n' "${ext_arr[@]}" | jq -R . | jq -s .)
 
-          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json"
+          rc=0
+          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json" || rc=$?
           end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           echo "Done." >&2
