@@ -247,6 +247,102 @@ finalize_translations_repo() {
   done
 }
 
+# ── Translation workflow state ─────────────────────────────────────────
+#
+# Mutable globals accumulated during per-submodule processing:
+#
+#   UPDATES (indexed array)
+#     Ordered, deduplicated list of successfully processed submodule names
+#     (basename only, e.g. "algorithm", not "libs/algorithm").
+#     Written via record_submodule_update; consumed by finalize_translations_*.
+#
+#   add_or_update (associative array: lang_code → space-separated names)
+#     Submodule names eligible for Weblate per language; only submodules that
+#     passed process_local_branch. Written via record_add_or_update_submodule;
+#     consumed by trigger_weblate (translation.sh).
+
+init_translation_state() {
+  UPDATES=()
+  declare -gA add_or_update=()
+}
+
+init_add_or_update_lang() {
+  local lang_code="$1"
+  add_or_update["$lang_code"]=""
+}
+
+# Return 0 when $1 is a well-formed Boost libs/ submodule basename.
+is_valid_submodule_name() {
+  local name="$1"
+  [[ -n "$name" ]] || return 1
+  # Basename only (e.g. algorithm, multi_index). No slashes or whitespace.
+  [[ "$name" =~ ^[a-z][a-z0-9._-]*$ ]]
+}
+
+_submodule_in_updates() {
+  local sub_name="$1" sub
+  for sub in "${UPDATES[@]}"; do
+    [[ "$sub" == "$sub_name" ]] && return 0
+  done
+  return 1
+}
+
+_submodule_in_add_or_update() {
+  local lang_code="$1" sub_name="$2" subs sub
+  subs="${add_or_update[$lang_code]:-}"
+  [[ -z "$subs" ]] && return 1
+  for sub in $subs; do
+    [[ "$sub" == "$sub_name" ]] && return 0
+  done
+  return 1
+}
+
+# Append a successfully processed submodule to UPDATES (idempotent on duplicate).
+record_submodule_update() {
+  local sub_name="$1"
+  is_valid_submodule_name "$sub_name" || {
+    phase_err "invalid submodule name: '$sub_name'"
+    return 1
+  }
+  _submodule_in_updates "$sub_name" && return 0
+  UPDATES+=("$sub_name")
+}
+
+# Append a Weblate-eligible submodule for lang_code (idempotent on duplicate).
+record_add_or_update_submodule() {
+  local lang_code="$1" sub_name="$2"
+  is_valid_lang_code "$lang_code" || {
+    phase_err "invalid language code: '$lang_code'"
+    return 1
+  }
+  is_valid_submodule_name "$sub_name" || {
+    phase_err "invalid submodule name: '$sub_name'"
+    return 1
+  }
+  _submodule_in_add_or_update "$lang_code" "$sub_name" && return 0
+  if [[ -n "${add_or_update[$lang_code]:-}" ]]; then
+    add_or_update["$lang_code"]+=" $sub_name"
+  else
+    add_or_update["$lang_code"]="$sub_name"
+  fi
+}
+
+# Validate a space-separated add_or_update value before Weblate POST.
+validate_add_or_update_entry() {
+  local lang_code="$1" subs="$2"
+  [[ -n "$subs" ]] || {
+    phase_err "add_or_update[$lang_code] is empty"
+    return 1
+  }
+  local sub
+  for sub in $subs; do
+    is_valid_submodule_name "$sub" || {
+      phase_err "invalid submodule name in add_or_update[$lang_code]: '$sub'"
+      return 1
+    }
+  done
+}
+
 # ── Parsing helpers ───────────────────────────────────────────────────
 
 # Parse "[zh_Hans, en]" or "zh_Hans,en" into one code per line.

@@ -41,7 +41,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          UPDATES=()
           # Summary buckets (doc metadata / skips); printed after Step 2.
           META_MISSING=()
           NO_DOC_PATHS=()
@@ -51,6 +50,8 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+
+          init_translation_state
 
           begin_phase "$PHASE_SETUP" "Validate inputs and prepare workspace"
           validate_secrets
@@ -189,7 +190,7 @@ jobs:
             sub="${submodule_names[$i]}"
             echo "[$(( i + 1 ))/$total] $sub ..." >&2
             if process_one_submodule "$sub"; then
-              UPDATES+=("$sub")
+              record_submodule_update "$sub"
             else
               rc=$?
               [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))

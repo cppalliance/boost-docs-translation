@@ -2,8 +2,11 @@
 # start-translation orchestration helpers.
 # Source after env.sh and lib.sh. Requires globals:
 # MODULE_ORG, MASTER_BRANCH, BOOST_ORG, BOOST_WORK, ORG_WORK, libs_ref,
-# lang_codes_arr, add_or_update (associative), ORG_REPO_MISSING, META_MISSING,
+# lang_codes_arr, ORG_REPO_MISSING, META_MISSING,
 # NO_DOC_PATHS, GITHUB_WORKSPACE, START_PHASE (optional: mirrors | local).
+# Translation state (UPDATES, add_or_update): init via init_translation_state /
+# init_add_or_update_lang; write via record_*; read by finalize_translations_* /
+# trigger_weblate.
 # shellcheck disable=SC2034,SC2154
 
 # Wipe dest_repo (except .git), copy pruned source, commit, push master only.
@@ -121,11 +124,7 @@ process_one_submodule() {
   local any_added=0 rc
   for lang_code in "${lang_codes_arr[@]}"; do
     if process_local_branch "$dest_repo" "$sub_name" "$lang_code"; then
-      if [[ -n "${add_or_update[$lang_code]:-}" ]]; then
-        add_or_update["$lang_code"]+=" $sub_name"
-      else
-        add_or_update["$lang_code"]="$sub_name"
-      fi
+      record_add_or_update_submodule "$lang_code" "$sub_name" || return 2
       any_added=1
     else
       rc=$?
@@ -133,4 +132,75 @@ process_one_submodule() {
     fi
   done
   [[ $any_added -eq 1 ]]
+}
+
+# POST add-or-update payload to Weblate for one language.
+# Reads add_or_update[lang_code]; skips when empty; validates names before POST.
+trigger_weblate() {
+  # Locals differ from WEBLATE_* env names to avoid ShellCheck SC2153 misspelling hints.
+  local api_base_url="$1" api_token="$2" libs_ref="$3" exts_json="$4" lang_code="$5"
+
+  local subs="${add_or_update[$lang_code]:-}"
+  [[ -z "$subs" ]] && {
+    echo "Weblate skipped: no translations to update." >&2; return
+  }
+
+  validate_add_or_update_entry "$lang_code" "$subs" || return 1
+
+  local subs_json add_or_update_json
+  subs_json=$(echo "$subs" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s .)
+  add_or_update_json=$(jq -n --arg lc "$lang_code" --argjson s "$subs_json" \
+    '{($lc): $s}')
+
+  [[ "$add_or_update_json" == "{}" ]] && {
+    echo "Weblate skipped: no translations to update." >&2; return
+  }
+
+  local payload
+  payload=$(jq -n \
+    --arg org "$MODULE_ORG" --arg ver "$libs_ref" \
+    --argjson add "$add_or_update_json" --argjson ext "$exts_json" \
+    '{organization:$org,add_or_update:$add,version:$ver,extensions:$ext}')
+
+  echo "Weblate trigger parameters:" >&2
+  echo "  organization: $MODULE_ORG" >&2
+  echo "  version:      $libs_ref" >&2
+  echo "  extensions:   $exts_json" >&2
+  echo "  add_or_update:" >&2
+  echo "$add_or_update_json" | jq -r 'to_entries[] | "    \(.key): \(.value | join(", "))"' >&2
+
+  local resp http_code curl_exit=0
+  resp=$(mktemp)
+  http_code=$(curl -sS -o "$resp" -w "%{http_code}" --max-time 120 -X POST \
+    -H "Authorization: Token $api_token" \
+    -H "Content-Type: application/json" \
+    -H "User-Agent: BoostDocsSync/1.0" \
+    -d "$payload" \
+    "${api_base_url%/}/${WEBLATE_ENDPOINT_PATH}" \
+  ) || curl_exit=$?
+
+  if [[ $curl_exit -ne 0 ]]; then
+    phase_err "Weblate trigger failed (curl exit $curl_exit)."
+    cat "$resp" >&2 || true
+    rm -f "$resp"
+    return 1
+  fi
+
+  case "$http_code" in
+    202)
+      echo "Weblate add-or-update accepted (HTTP 202, async)." >&2
+      jq . "$resp" >&2 || cat "$resp" >&2
+      ;;
+    200)
+      echo "Weblate returned HTTP 200 (sync server); treating as success." >&2
+      cat "$resp" >&2 || true
+      ;;
+    *)
+      phase_err "Weblate returned HTTP $http_code (expected 202)."
+      cat "$resp" >&2 || true
+      rm -f "$resp"
+      return 1
+      ;;
+  esac
+  rm -f "$resp"
 }

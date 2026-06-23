@@ -44,9 +44,8 @@ reset_process_globals() {
   ORG_REPO_MISSING=()
   META_MISSING=()
   NO_DOC_PATHS=()
-  declare -gA add_or_update=()
   lang_codes_arr=()
-  UPDATES=()
+  init_translation_state
 }
 
 init_process_globals() {
@@ -56,5 +55,5 @@ init_process_globals() {
   BOOST_ORG="boostorg"
   libs_ref="develop"
   lang_codes_arr=("en")
-  add_or_update["en"]=""
+  init_add_or_update_lang "en"
 }

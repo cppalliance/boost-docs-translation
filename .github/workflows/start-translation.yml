@@ -90,7 +90,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          UPDATES=()
           # shellcheck disable=SC2034
           lang_codes_arr=()
           META_MISSING=()
@@ -103,6 +102,8 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+
+          init_translation_state
 
           begin_phase "$PHASE_SETUP" "Prepare workspace"
           validate_secrets
@@ -158,7 +159,7 @@ jobs:
             sub="${submodule_names[$i]}"
             echo "[$(( i + 1 ))/$total] $sub ..." >&2
             if process_one_submodule "$sub"; then
-              UPDATES+=("$sub")
+              record_submodule_update "$sub"
             else
               rc=$?
               [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))
@@ -222,8 +223,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          UPDATES=()
-          declare -A add_or_update
           META_MISSING=()
           NO_DOC_PATHS=()
           ORG_REPO_MISSING=()
@@ -234,6 +233,8 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+
+          init_translation_state
 
           begin_phase "$PHASE_SETUP" "Prepare workspace"
           validate_secrets weblate
@@ -248,84 +249,18 @@ jobs:
 
           # shellcheck disable=SC2034
           START_PHASE="$START_PHASE_LOCAL"
-          # shellcheck disable=SC2153
+          # shellcheck disable=SC2034,SC2153
           libs_ref="${LIBS_REF:?}"
 
           ORG_WORK="$WORK_DIR/$MODULE_ORG"
           mkdir -p "$ORG_WORK"
-
-          trigger_weblate() {
-            # Locals differ from WEBLATE_* env names to avoid ShellCheck SC2153 misspelling hints.
-            local api_base_url="$1" api_token="$2" libs_ref="$3" exts_json="$4"
-
-            local subs="${add_or_update[$LANG_CODE]:-}"
-            [[ -z "$subs" ]] && {
-              echo "Weblate skipped: no translations to update." >&2; return
-            }
-            local subs_json add_or_update_json
-            subs_json=$(echo "$subs" | tr ' ' '\n' | grep -v '^$' | jq -R . | jq -s .)
-            add_or_update_json=$(jq -n --arg lc "$LANG_CODE" --argjson s "$subs_json" \
-              '{($lc): $s}')
-
-            [[ "$add_or_update_json" == "{}" ]] && {
-              echo "Weblate skipped: no translations to update." >&2; return
-            }
-
-            local payload
-            payload=$(jq -n \
-              --arg org "$MODULE_ORG" --arg ver "$libs_ref" \
-              --argjson add "$add_or_update_json" --argjson ext "$exts_json" \
-              '{organization:$org,add_or_update:$add,version:$ver,extensions:$ext}')
-
-            echo "Weblate trigger parameters:" >&2
-            echo "  organization: $MODULE_ORG" >&2
-            echo "  version:      $libs_ref" >&2
-            echo "  extensions:   $exts_json" >&2
-            echo "  add_or_update:" >&2
-            echo "$add_or_update_json" | jq -r 'to_entries[] | "    \(.key): \(.value | join(", "))"' >&2
-
-            local resp http_code curl_exit=0
-            resp=$(mktemp)
-            http_code=$(curl -sS -o "$resp" -w "%{http_code}" --max-time 120 -X POST \
-              -H "Authorization: Token $api_token" \
-              -H "Content-Type: application/json" \
-              -H "User-Agent: BoostDocsSync/1.0" \
-              -d "$payload" \
-              "${api_base_url%/}/${WEBLATE_ENDPOINT_PATH}" \
-            ) || curl_exit=$?
-
-            if [[ $curl_exit -ne 0 ]]; then
-              phase_err "Weblate trigger failed (curl exit $curl_exit)."
-              cat "$resp" >&2 || true
-              rm -f "$resp"
-              return 1
-            fi
-
-            case "$http_code" in
-              202)
-                echo "Weblate add-or-update accepted (HTTP 202, async)." >&2
-                jq . "$resp" >&2 || cat "$resp" >&2
-                ;;
-              200)
-                echo "Weblate returned HTTP 200 (sync server); treating as success." >&2
-                cat "$resp" >&2 || true
-                ;;
-              *)
-                phase_err "Weblate returned HTTP $http_code (expected 202)."
-                cat "$resp" >&2 || true
-                rm -f "$resp"
-                return 1
-                ;;
-            esac
-            rm -f "$resp"
-          }
 
           echo "Lang code: $LANG_CODE" >&2
 
           # Read by process_one_submodule in translation.sh (sourced above).
           # shellcheck disable=SC2034
           lang_codes_arr=("$LANG_CODE")
-          add_or_update["$LANG_CODE"]=""
+          init_add_or_update_lang "$LANG_CODE"
 
           [[ ! -f .gitmodules ]] && {
             phase_err ".gitmodules not found (run from translations repo with master checked out)"
@@ -363,7 +298,7 @@ jobs:
             sub="${submodule_names[$i]}"
             echo "[$(( i + 1 ))/$total] $sub ..." >&2
             if process_one_submodule "$sub"; then
-              UPDATES+=("$sub")
+              record_submodule_update "$sub"
             else
               rc=$?
               [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))
@@ -396,7 +331,7 @@ jobs:
             exts_json=$(printf '%s\n' "${ext_arr[@]}" | jq -R . | jq -s .)
 
           rc=0
-          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json" || rc=$?
+          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json" "$LANG_CODE" || rc=$?
           end_phase
           [[ $rc -ne 0 ]] && exit $rc
 

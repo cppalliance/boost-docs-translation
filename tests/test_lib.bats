@@ -297,3 +297,60 @@ setup() {
   WEBLATE_TOKEN="secret"
   validate_secrets weblate
 }
+
+@test "is_valid_submodule_name: accepts common Boost lib names" {
+  is_valid_submodule_name "algorithm"
+  is_valid_submodule_name "multi_index"
+}
+
+@test "is_valid_submodule_name: rejects invalid names" {
+  ! is_valid_submodule_name ""
+  ! is_valid_submodule_name "libs/foo"
+  ! is_valid_submodule_name "foo bar"
+}
+
+@test "record_submodule_update: deduplicates entries" {
+  init_translation_state
+  record_submodule_update "algorithm"
+  record_submodule_update "algorithm"
+  [ "${#UPDATES[@]}" -eq 1 ]
+  [ "${UPDATES[0]}" = "algorithm" ]
+}
+
+@test "record_add_or_update_submodule: deduplicates within lang key" {
+  init_translation_state
+  init_add_or_update_lang "en"
+  record_add_or_update_submodule "en" "algorithm"
+  record_add_or_update_submodule "en" "algorithm"
+  [ "${add_or_update[en]}" = "algorithm" ]
+}
+
+@test "validate_add_or_update_entry: rejects empty value" {
+  run validate_add_or_update_entry "en" ""
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"add_or_update[en] is empty"* ]]
+}
+
+@test "validate_add_or_update_entry: rejects invalid submodule token" {
+  run validate_add_or_update_entry "en" "libs/foo"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"invalid submodule name"* ]]
+}
+
+@test "trigger_weblate: skips when add_or_update is empty" {
+  load_translation
+  init_translation_state
+  init_add_or_update_lang "en"
+  run trigger_weblate "https://weblate.example" "token" "develop" "[]" "en"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Weblate skipped: no translations to update."* ]]
+}
+
+@test "trigger_weblate: fails on invalid submodule name in map" {
+  load_translation
+  init_translation_state
+  add_or_update["en"]="libs/foo"
+  run trigger_weblate "https://weblate.example" "token" "develop" "[]" "en"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"invalid submodule name"* ]]
+}
