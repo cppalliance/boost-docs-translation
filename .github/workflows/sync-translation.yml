@@ -53,6 +53,7 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
           begin_phase "$PHASE_DISCOVER" "Discover local-* branches"
+          trap '[[ -n "$CURRENT_PHASE" ]] && end_phase' EXIT ERR
           mapfile -t local_branches < <(
             git ls-remote --heads origin "refs/heads/${LOCAL_BRANCH_PREFIX}*" \
               | awk '{print $2}' | sed 's|refs/heads/||'
@@ -115,6 +116,7 @@ jobs:
 
           branch="${LOCAL_BRANCH_PREFIX}${SYNC_LANG}"
           begin_phase "$PHASE_SYNC_POINTERS" "Sync pointers on $branch"
+          trap '[[ -n "$CURRENT_PHASE" ]] && end_phase' EXIT ERR
           git fetch origin "$branch"
           git checkout -B "$branch" "origin/$branch"
           git submodule update --init

@@ -82,6 +82,13 @@ setup() {
   [[ "$output" == *"lang_codes not set"* ]]
 }
 
+@test "parse_and_validate_lang_codes: empty LANG_CODES exits 1" {
+  LANG_CODES=""
+  run parse_and_validate_lang_codes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"lang_codes not set"* ]]
+}
+
 @test "parse_and_validate_lang_codes: invalid code exits 1" {
   LANG_CODES="en US"
   run parse_and_validate_lang_codes

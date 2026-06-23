@@ -91,6 +91,8 @@ jobs:
           set -euo pipefail
 
           UPDATES=()
+          # shellcheck disable=SC2034
+          lang_codes_arr=()
           META_MISSING=()
           NO_DOC_PATHS=()
           ORG_REPO_MISSING=()
@@ -103,11 +105,7 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
 
           begin_phase "$PHASE_SETUP" "Prepare workspace"
-          [[ -z "${GITHUB_TOKEN:-}" ]] && {
-            phase_err "SYNC_TOKEN secret is not set."
-            end_phase
-            exit 1
-          }
+          validate_secrets
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
@@ -233,24 +231,6 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
 
           begin_phase "$PHASE_SETUP" "Prepare workspace"
-          [[ -z "${GITHUB_TOKEN:-}" ]] && {
-            phase_err "SYNC_TOKEN secret is not set."
-            end_phase
-            exit 1
-          }
-
-          [[ -z "${WEBLATE_URL:-}" ]] && {
-            phase_err "WEBLATE_URL secret is not set."
-            end_phase
-            exit 1
-          }
-
-          [[ -z "${WEBLATE_TOKEN:-}" ]] && {
-            phase_err "WEBLATE_TOKEN secret is not set."
-            end_phase
-            exit 1
-          }
-
           validate_secrets weblate
 
           WORK_DIR=$(mktemp -d)

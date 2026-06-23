@@ -25,16 +25,12 @@ if [[ -f "$_REPO_ROOT/.env" ]]; then
   source "$_REPO_ROOT/.env"
   set +a
 fi
-# shellcheck source=/dev/null
-source "$_REPO_ROOT/.github/workflows/assets/env.sh"
-unset _REPO_ROOT
-
-_ASSETS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/.github/workflows/assets"
+_ASSETS_DIR="$_REPO_ROOT/.github/workflows/assets"
 # shellcheck source=/dev/null
 source "$_ASSETS_DIR/env.sh"
 # shellcheck source=/dev/null
 source "$_ASSETS_DIR/lib.sh"
-unset _ASSETS_DIR
+unset _REPO_ROOT _ASSETS_DIR
 
 # ---------------------------------------------------------------------------
 # Typical run — edit defaults below. CLI flags override.
