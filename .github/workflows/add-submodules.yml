@@ -142,11 +142,16 @@ jobs:
           # ── Main ─────────────────────────────────────────────────────────────
 
           begin_phase "$PHASE_ENSURE_BRANCHES" "Ensure local branches in translations repo"
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
-          for lang_code in "${lang_codes_arr[@]}"; do
-            ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code"
-          done
+          rc=0
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
+          if [[ $rc -eq 0 ]]; then
+            for lang_code in "${lang_codes_arr[@]}"; do
+              ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code" || rc=$?
+              [[ $rc -ne 0 ]] && break
+            done
+          fi
           end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           begin_phase "$PHASE_PROCESS_SUBMODULES" "Process submodules"
           if [[ -n "${SUBMODULES:-}" ]]; then

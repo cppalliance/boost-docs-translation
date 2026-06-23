@@ -145,7 +145,12 @@ jobs:
           begin_phase "$PHASE_PROCESS_SUBMODULES" "Sync mirror master"
           echo "Syncing mirror master for ${#submodule_names[@]} submodules." >&2
 
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
+          rc=0
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
+          if [[ $rc -ne 0 ]]; then
+            end_phase
+            exit $rc
+          fi
 
           total=${#submodule_names[@]}
           submodule_fatal=0

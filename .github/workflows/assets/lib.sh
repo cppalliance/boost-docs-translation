@@ -313,7 +313,8 @@ parse_and_validate_lang_codes() {
   require_lang_codes
   mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
   [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-    echo "Error: LANG_CODES parsed to empty list." >&2
+    phase_err "LANG_CODES parsed to empty list."
+    end_phase
     exit 1
   }
   validate_lang_codes "${lang_codes_arr[@]}"
