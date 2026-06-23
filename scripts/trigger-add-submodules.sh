@@ -22,9 +22,12 @@ if [[ -f "$_REPO_ROOT/.env" ]]; then
   source "$_REPO_ROOT/.env"
   set +a
 fi
+_ASSETS_DIR="$_REPO_ROOT/.github/workflows/assets"
 # shellcheck source=/dev/null
-source "$_REPO_ROOT/.github/workflows/assets/env.sh"
-unset _REPO_ROOT
+source "$_ASSETS_DIR/env.sh"
+# shellcheck source=/dev/null
+source "$_ASSETS_DIR/lib.sh"
+unset _REPO_ROOT _ASSETS_DIR
 
 # ---------------------------------------------------------------------------
 # Typical run — edit these. CLI flags override (except --token uses env/PAT).
@@ -90,11 +93,12 @@ dispatch_json() {
   local version="$1" submodules="$2" lang_codes="$3"
   if command -v jq >/dev/null 2>&1; then
     jq -n \
+      --arg event_type "$EVENT_ADD_SUBMODULES" \
       --arg version "$version" \
       --arg submodules "$submodules" \
       --arg lang_codes "$lang_codes" \
       '{
-        event_type: "add-submodules",
+        event_type: $event_type,
         client_payload: (
           {}
           | if ($version | length) > 0 then . + {version: $version} else . end
@@ -108,8 +112,8 @@ dispatch_json() {
   command -v python3 >/dev/null 2>&1 && py="python3"
   [[ -z "$py" ]] && command -v python >/dev/null 2>&1 && py="python"
   if [[ -n "$py" ]]; then
-    "$py" -c "import json,sys; v,s,lc=sys.argv[1:4]; d={k:x for k,x in (('version',v),('submodules',s),('lang_codes',lc)) if x}; print(json.dumps({'event_type':'add-submodules','client_payload':d}))" \
-      "$version" "$submodules" "$lang_codes"
+    "$py" -c "import json,sys; et,v,s,lc=sys.argv[1:5]; d={k:x for k,x in (('version',v),('submodules',s),('lang_codes',lc)) if x}; print(json.dumps({'event_type':et,'client_payload':d}))" \
+      "$EVENT_ADD_SUBMODULES" "$version" "$submodules" "$lang_codes"
     return 0
   fi
   return 1
@@ -151,6 +155,8 @@ fi
 
 VERSION="${VERSION:-$DEFAULT_VERSION}"
 SUBMODULES="${SUBMODULES:-$DEFAULT_SUBMODULES}"
+
+validate_event_type "$EVENT_ADD_SUBMODULES"
 
 body="$(dispatch_json "$VERSION" "$SUBMODULES" "$LANG_CODES")" || {
   echo "error: install jq, or Python 3 (python3 or python on PATH), to build the request JSON" >&2

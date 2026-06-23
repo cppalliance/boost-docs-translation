@@ -97,8 +97,9 @@ moves submodule SHAs on existing **`${LOCAL_BRANCH_PREFIX}*`** branches.
 
 **Dependency direction.** Inline bash in **`add-submodules.yml`**,
 **`start-translation.yml`**, and **`sync-translation.yml`** sources **`env.sh`** then
-**`lib.sh`**. **`sync-translation`** uses **`lib.sh`** for **`validate_lang_codes`** in
-**`discover`** and **`sync-local`**; submodule pointer updates remain inline git.
+**`lib.sh`**. **`add-submodules`** and **`start-translation`** call
+**`parse_and_validate_lang_codes`** once per run; **`sync-translation`** uses
+**`validate_lang_codes`** in **`discover`** only; submodule pointer updates remain inline git.
 
 ---
 

@@ -67,6 +67,35 @@ setup() {
   ! is_valid_lang_code "a"
 }
 
+@test "parse_and_validate_lang_codes: valid LANG_CODES populates lang_codes_arr" {
+  LANG_CODES="zh_Hans,en"
+  parse_and_validate_lang_codes
+  [ "${#lang_codes_arr[@]}" -eq 2 ]
+  [ "${lang_codes_arr[0]}" = "zh_Hans" ]
+  [ "${lang_codes_arr[1]}" = "en" ]
+}
+
+@test "parse_and_validate_lang_codes: missing LANG_CODES exits 1" {
+  unset LANG_CODES
+  run parse_and_validate_lang_codes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"lang_codes not set"* ]]
+}
+
+@test "parse_and_validate_lang_codes: empty LANG_CODES exits 1" {
+  LANG_CODES=""
+  run parse_and_validate_lang_codes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"lang_codes not set"* ]]
+}
+
+@test "parse_and_validate_lang_codes: invalid code exits 1" {
+  LANG_CODES="en US"
+  run parse_and_validate_lang_codes
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"invalid language code"* ]]
+}
+
 @test "get_doc_paths: single-library repo emits doc" {
   # shellcheck source=tests/helpers/mock_gh.bash
   source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"
@@ -215,4 +244,56 @@ setup() {
   [ "${SYNC_CALLS[2]}" = "branch=${LOCAL_BRANCH_PREFIX}zh_Hans force=true" ]
 
   cleanup_git_fixture_root
+}
+
+@test "begin_phase and end_phase: emit group markers and track CURRENT_PHASE" {
+  local out_file="$BATS_TMPDIR/phase.out"
+
+  begin_phase "$PHASE_SETUP" "Test setup" >"$out_file"
+  [ "$(cat "$out_file")" = "::group::[setup] Test setup" ]
+  [ "$CURRENT_PHASE" = "setup" ]
+
+  end_phase >"$out_file"
+  [ "$(cat "$out_file")" = "::endgroup::" ]
+  [ -z "$CURRENT_PHASE" ]
+}
+
+@test "phase_err: includes active phase in message" {
+  begin_phase "$PHASE_PROCESS_SUBMODULES" "Process submodules"
+  run phase_err "something failed"
+  end_phase
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[process-submodules] something failed"* ]]
+}
+
+@test "phase_err: uses unknown when no phase is active" {
+  CURRENT_PHASE=""
+  run phase_err "early failure"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"[unknown] early failure"* ]]
+}
+
+@test "is_valid_event_type: accepts declared event types" {
+  is_valid_event_type "$EVENT_ADD_SUBMODULES"
+  is_valid_event_type "$EVENT_START_TRANSLATION"
+  is_valid_event_type "$EVENT_SYNC_TRANSLATION"
+}
+
+@test "is_valid_event_type: rejects unknown event types" {
+  ! is_valid_event_type "not-a-real-event"
+}
+
+@test "validate_event_type: exits 1 on invalid input" {
+  run validate_event_type "bad-event"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"invalid event_type='bad-event'"* ]]
+}
+
+@test "validate_secrets weblate: accepts LANG_CODE without LANG_CODES" {
+  GITHUB_TOKEN="token"
+  LANG_CODE="zh_Hans"
+  unset LANG_CODES
+  WEBLATE_URL="https://weblate.example"
+  WEBLATE_TOKEN="secret"
+  validate_secrets weblate
 }

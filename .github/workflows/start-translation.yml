@@ -1,6 +1,6 @@
 # Sync existing Boost submodules (update docs and submodule pointers).
 #
-# Trigger: repository_dispatch with event_type "start-translation".
+# Trigger: repository_dispatch with event_type EVENT_START_TRANSLATION (start-translation).
 # Example: POST /repos/{owner}/{repo}/dispatches
 #   Body: {"event_type": "start-translation", "client_payload": {"version": "boost-1.90.0"}}
 #
@@ -26,6 +26,7 @@ name: Start translation
 
 on:
   repository_dispatch:
+    # Must match EVENT_START_TRANSLATION in assets/env.sh
     types: [start-translation]
 
 permissions:
@@ -43,23 +44,22 @@ jobs:
           token: ${{ secrets.SYNC_TOKEN }}
           persist-credentials: false
 
-      - name: Validate language codes
+      - name: Prepare language matrix
         id: langs
         env:
           LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
         run: |
           set -euo pipefail
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          require_lang_codes
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
+          begin_phase "$PHASE_SETUP" "Validate language matrix"
+          parse_and_validate_lang_codes
           langs_json=$(printf '%s\n' "${lang_codes_arr[@]}" | jq -R . | jq -s -c .)
           echo "json=$langs_json" >> "$GITHUB_OUTPUT"
           echo "Lang codes: ${lang_codes_arr[*]}" >&2
+          end_phase
 
   sync-mirrors:
     needs: setup
@@ -86,20 +86,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
           LIBS_REF: ${{ github.event.client_payload.version || 'develop' }}
-          START_PHASE: mirrors
           SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
         run: |
           set -euo pipefail
 
-          [[ -z "${GITHUB_TOKEN:-}" ]] && {
-            echo "Error: SYNC_TOKEN secret is not set." >&2
-            exit 1
-          }
-
           UPDATES=()
+          # shellcheck disable=SC2034
+          lang_codes_arr=()
           META_MISSING=()
           NO_DOC_PATHS=()
           ORG_REPO_MISSING=()
+
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          # shellcheck source=assets/translation.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+
+          begin_phase "$PHASE_SETUP" "Prepare workspace"
+          validate_secrets
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
@@ -109,13 +115,8 @@ jobs:
 
           gh auth setup-git
 
-          # shellcheck source=assets/env.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
-          # shellcheck source=assets/lib.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          # shellcheck source=assets/translation.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
-
+          # shellcheck disable=SC2034
+          START_PHASE="$START_PHASE_MIRRORS"
           # libs_ref is read by translation.sh (sourced).
           # shellcheck disable=SC2034
           libs_ref="${LIBS_REF:?}"
@@ -124,7 +125,8 @@ jobs:
           mkdir -p "$ORG_WORK"
 
           [[ ! -f .gitmodules ]] && {
-            echo "Error: .gitmodules not found (run from translations repo with master checked out)" >&2
+            phase_err ".gitmodules not found (run from translations repo with master checked out)"
+            end_phase
             exit 1
           }
 
@@ -134,12 +136,21 @@ jobs:
           )
 
           [[ ${#submodule_names[@]} -eq 0 ]] && {
-            echo "No libs/ submodules in .gitmodules, nothing to sync." >&2; exit 0
+            echo "No libs/ submodules in .gitmodules, nothing to sync." >&2
+            end_phase
+            exit 0
           }
+          end_phase
 
+          begin_phase "$PHASE_PROCESS_SUBMODULES" "Sync mirror master"
           echo "Syncing mirror master for ${#submodule_names[@]} submodules." >&2
 
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
+          rc=0
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
+          if [[ $rc -ne 0 ]]; then
+            end_phase
+            exit $rc
+          fi
 
           total=${#submodule_names[@]}
           submodule_fatal=0
@@ -160,11 +171,17 @@ jobs:
           echo "  Type 3 — Lib repo missing in org (run add-submodules first) (${#ORG_REPO_MISSING[@]}): $([[ ${#ORG_REPO_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${ORG_REPO_MISSING[*]}")" >&2
 
           [[ $submodule_fatal -gt 0 ]] && {
-            echo "Error: $submodule_fatal submodule(s) failed with errors." >&2
+            phase_err "$submodule_fatal submodule(s) failed with errors."
+            end_phase
             exit 1
           }
+          end_phase
 
-          finalize_translations_master "$TRANS_DIR" "$LIBS_REF"
+          begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations master"
+          rc=0
+          finalize_translations_master "$TRANS_DIR" "$LIBS_REF" || rc=$?
+          end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           echo "Done." >&2
 
@@ -198,28 +215,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
           LIBS_REF: ${{ github.event.client_payload.version || 'develop' }}
           LANG_CODE: ${{ matrix.lang }}
-          START_PHASE: local
           EXTENSIONS: ${{ github.event.client_payload.extensions || '' }}
           WEBLATE_URL: ${{ secrets.WEBLATE_URL }}
           WEBLATE_TOKEN: ${{ secrets.WEBLATE_TOKEN }}
           SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
         run: |
           set -euo pipefail
-
-          [[ -z "${GITHUB_TOKEN:-}" ]] && {
-            echo "Error: SYNC_TOKEN secret is not set." >&2
-            exit 1
-          }
-
-          [[ -z "${WEBLATE_URL:-}" ]] && {
-            echo "Error: WEBLATE_URL secret is not set." >&2
-            exit 1
-          }
-
-          [[ -z "${WEBLATE_TOKEN:-}" ]] && {
-            echo "Error: WEBLATE_TOKEN secret is not set." >&2
-            exit 1
-          }
 
           UPDATES=()
           declare -A add_or_update
@@ -231,9 +232,11 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          validate_secrets weblate
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+
+          begin_phase "$PHASE_SETUP" "Prepare workspace"
+          validate_secrets weblate
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
@@ -243,6 +246,8 @@ jobs:
 
           gh auth setup-git
 
+          # shellcheck disable=SC2034
+          START_PHASE="$START_PHASE_LOCAL"
           # shellcheck disable=SC2153
           libs_ref="${LIBS_REF:?}"
 
@@ -290,7 +295,7 @@ jobs:
             ) || curl_exit=$?
 
             if [[ $curl_exit -ne 0 ]]; then
-              echo "Weblate trigger failed (curl exit $curl_exit)." >&2
+              phase_err "Weblate trigger failed (curl exit $curl_exit)."
               cat "$resp" >&2 || true
               rm -f "$resp"
               return 1
@@ -306,7 +311,7 @@ jobs:
                 cat "$resp" >&2 || true
                 ;;
               *)
-                echo "Weblate returned HTTP $http_code (expected 202)." >&2
+                phase_err "Weblate returned HTTP $http_code (expected 202)."
                 cat "$resp" >&2 || true
                 rm -f "$resp"
                 return 1
@@ -315,7 +320,6 @@ jobs:
             rm -f "$resp"
           }
 
-          validate_lang_codes "$LANG_CODE"
           echo "Lang code: $LANG_CODE" >&2
 
           # Read by process_one_submodule in translation.sh (sourced above).
@@ -324,7 +328,8 @@ jobs:
           add_or_update["$LANG_CODE"]=""
 
           [[ ! -f .gitmodules ]] && {
-            echo "Error: .gitmodules not found (run from translations repo with master checked out)" >&2
+            phase_err ".gitmodules not found (run from translations repo with master checked out)"
+            end_phase
             exit 1
           }
 
@@ -334,13 +339,23 @@ jobs:
           )
 
           [[ ${#submodule_names[@]} -eq 0 ]] && {
-            echo "No libs/ submodules in .gitmodules, nothing to sync." >&2; exit 0
+            echo "No libs/ submodules in .gitmodules, nothing to sync." >&2
+            end_phase
+            exit 0
           }
+          end_phase
 
+          begin_phase "$PHASE_ENSURE_BRANCHES" "Ensure local branch in translations repo"
+          rc=0
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
+          if [[ $rc -eq 0 ]]; then
+            ensure_local_branch_in_translations "$TRANS_DIR" "$LANG_CODE" || rc=$?
+          fi
+          end_phase
+          [[ $rc -ne 0 ]] && exit $rc
+
+          begin_phase "$PHASE_PROCESS_SUBMODULES" "Process local branches"
           echo "Processing local branches for ${#submodule_names[@]} submodules." >&2
-
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
-          ensure_local_branch_in_translations "$TRANS_DIR" "$LANG_CODE"
 
           total=${#submodule_names[@]}
           submodule_fatal=0
@@ -361,18 +376,28 @@ jobs:
           echo "  Type 3 — Lib repo missing in org (run add-submodules first) (${#ORG_REPO_MISSING[@]}): $([[ ${#ORG_REPO_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${ORG_REPO_MISSING[*]}")" >&2
 
           [[ $submodule_fatal -gt 0 ]] && {
-            echo "Error: $submodule_fatal submodule(s) failed with errors." >&2
+            phase_err "$submodule_fatal submodule(s) failed with errors."
+            end_phase
             exit 1
           }
+          end_phase
 
-          finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$LANG_CODE"
+          begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations local branch"
+          rc=0
+          finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$LANG_CODE" || rc=$?
+          end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
+          begin_phase "$PHASE_TRIGGER_WEBLATE" "Trigger Weblate add-or-update"
           ext_arr=()
           [[ -n "${EXTENSIONS:-}" ]] && mapfile -t ext_arr < <(parse_extensions "$EXTENSIONS")
           exts_json="[]"
           [[ ${#ext_arr[@]} -gt 0 ]] && \
             exts_json=$(printf '%s\n' "${ext_arr[@]}" | jq -R . | jq -s .)
 
-          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json"
+          rc=0
+          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json" || rc=$?
+          end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
           echo "Done." >&2

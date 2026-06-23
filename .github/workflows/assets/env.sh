@@ -4,6 +4,33 @@
 
 # Common variables for all workflows. Source this file before lib.sh.
 
+if [[ -z "${_ENV_SH_LOADED:-}" ]]; then
+  _ENV_SH_LOADED=1
+
+  # Pipeline phases (used in ::group:: headers and error messages).
+  readonly PHASE_SETUP="setup"
+  readonly PHASE_ENSURE_BRANCHES="ensure-branches"
+  readonly PHASE_PROCESS_SUBMODULES="process-submodules"
+  readonly PHASE_FINALIZE_TRANSLATIONS="finalize-translations"
+  readonly PHASE_TRIGGER_WEBLATE="trigger-weblate"
+  readonly PHASE_DISCOVER="discover"
+  readonly PHASE_SYNC_POINTERS="sync-pointers"
+
+  # start-translation submodule mode (START_PHASE env).
+  readonly START_PHASE_MIRRORS="mirrors"
+  readonly START_PHASE_LOCAL="local"
+
+  # repository_dispatch event types (must match workflow on.repository_dispatch.types).
+  readonly EVENT_ADD_SUBMODULES="add-submodules"
+  readonly EVENT_START_TRANSLATION="start-translation"
+  readonly EVENT_SYNC_TRANSLATION="sync-translation"
+  readonly -a VALID_EVENT_TYPES=(
+    "$EVENT_ADD_SUBMODULES"
+    "$EVENT_START_TRANSLATION"
+    "$EVENT_SYNC_TRANSLATION"
+  )
+fi
+
 ORG="${GITHUB_REPOSITORY%%/*}"
 TRANSLATIONS_REPO="${GITHUB_REPOSITORY##*/}"
 

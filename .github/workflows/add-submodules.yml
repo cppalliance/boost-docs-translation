@@ -1,6 +1,6 @@
 # Add new Boost Submodules from boostorg/boost to the per-library GitHub org.
 #
-# Trigger: repository_dispatch with event_type "add-submodules".
+# Trigger: repository_dispatch with event_type EVENT_ADD_SUBMODULES (add-submodules).
 # Example: POST /repos/{owner}/{repo}/dispatches
 #   Body: {"event_type": "add-submodules", "client_payload": {"version": "boost-1.90.0"}}
 #
@@ -18,6 +18,7 @@ name: Add submodules
 
 on:
   repository_dispatch:
+    # Must match EVENT_ADD_SUBMODULES in assets/env.sh
     types: [add-submodules]
 
 jobs:
@@ -28,20 +29,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.SYNC_TOKEN }}
-
-      - name: Validate language codes
-        env:
-          LANG_CODES: ${{ github.event.client_payload.lang_codes || vars.LANG_CODES }}
-        run: |
-          set -euo pipefail
-          # shellcheck source=assets/lib.sh
-          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
-          require_lang_codes
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
 
       - name: Add submodules
         shell: bash
@@ -64,7 +51,11 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+
+          begin_phase "$PHASE_SETUP" "Validate inputs and prepare workspace"
           validate_secrets
+          parse_and_validate_lang_codes
+          echo "Lang codes: ${lang_codes_arr[*]}" >&2
 
           WORK_DIR=$(mktemp -d)
           trap 'rm -rf "$WORK_DIR"' EXIT
@@ -82,6 +73,7 @@ jobs:
           # BOOST_ORG: env.sh
           # shellcheck disable=SC2153
           boost_org="${BOOST_ORG:?}"
+          end_phase
 
           # ── Organization repo helpers ────────────────────────────────────────
 
@@ -92,7 +84,7 @@ jobs:
 
           set_default_branch() {
             gh api --method PATCH "repos/$1/$2" -f "default_branch=$3" \
-              || { echo "Error: set default branch to $3 failed for $1/$2." >&2; return 1; }
+              || { phase_err "set default branch to $3 failed for $1/$2."; return 1; }
           }
 
           create_new_repo_and_push() {
@@ -149,22 +141,19 @@ jobs:
 
           # ── Main ─────────────────────────────────────────────────────────────
 
-          mapfile -t lang_codes_arr < <(parse_list "$LANG_CODES")
-          [[ ${#lang_codes_arr[@]} -eq 0 ]] && {
-            echo "Error: LANG_CODES parsed to empty list." >&2; exit 1
-          }
-          validate_lang_codes "${lang_codes_arr[@]}"
-          echo "Lang codes: ${lang_codes_arr[*]}" >&2
+          begin_phase "$PHASE_ENSURE_BRANCHES" "Ensure local branches in translations repo"
+          rc=0
+          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
+          if [[ $rc -eq 0 ]]; then
+            for lang_code in "${lang_codes_arr[@]}"; do
+              ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code" || rc=$?
+              [[ $rc -ne 0 ]] && break
+            done
+          fi
+          end_phase
+          [[ $rc -ne 0 ]] && exit $rc
 
-          # ── Step 1: ensure TRANSLATIONS_REPO has local-{lang_code} branches ──
-
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR"
-          for lang_code in "${lang_codes_arr[@]}"; do
-            ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code"
-          done
-
-          # ── Step 2: process submodules ────────────────────────────────────────
-
+          begin_phase "$PHASE_PROCESS_SUBMODULES" "Process submodules"
           if [[ -n "${SUBMODULES:-}" ]]; then
             mapfile -t submodule_names < <(parse_list "$SUBMODULES")
             echo "Using ${#submodule_names[@]} submodules from input." >&2
@@ -174,7 +163,9 @@ jobs:
             gitmodules_content=$(gh api \
               "repos/boostorg/boost/contents/.gitmodules?ref=$LIBS_REF" \
               -H "Accept: application/vnd.github.v3.raw" 2>/dev/null) || {
-              echo "Failed to fetch .gitmodules" >&2; exit 1
+              phase_err "Failed to fetch .gitmodules"
+              end_phase
+              exit 1
             }
             mapfile -t submodule_names < <(
               echo "$gitmodules_content" \
@@ -187,7 +178,9 @@ jobs:
           fi
 
           [[ ${#submodule_names[@]} -eq 0 ]] && {
-            echo "No submodules to process, nothing to do." >&2; exit 0
+            echo "No submodules to process, nothing to do." >&2
+            end_phase
+            exit 0
           }
 
           total=${#submodule_names[@]}
@@ -209,10 +202,14 @@ jobs:
           echo "  Type 3 — Target org repo already exists, skipped (${#REPO_EXISTS_SKIP[@]}): $([[ ${#REPO_EXISTS_SKIP[@]} -eq 0 ]] && echo '(none)' || echo "${REPO_EXISTS_SKIP[*]}")" >&2
 
           [[ $submodule_fatal -gt 0 ]] && {
-            echo "Error: $submodule_fatal submodule(s) failed with errors." >&2
+            phase_err "$submodule_fatal submodule(s) failed with errors."
+            end_phase
             exit 1
           }
+          end_phase
 
+          begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations repo"
           finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}"
+          end_phase
 
           echo "Done." >&2
