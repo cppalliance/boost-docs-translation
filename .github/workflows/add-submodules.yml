@@ -208,13 +208,13 @@ jobs:
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations repo"
-          rc=0
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}" || rc=$?
+          finalize_rc=0
+          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}" || finalize_rc=$?
           end_phase
 
           exit_rc=0
           [[ $submodule_fatal -gt 0 ]] && exit_rc=1
-          [[ $rc -ne 0 ]] && exit_rc=$rc
+          [[ $finalize_rc -ne 0 ]] && exit_rc=$finalize_rc
           [[ $exit_rc -ne 0 ]] && exit $exit_rc
 
           echo "Done." >&2

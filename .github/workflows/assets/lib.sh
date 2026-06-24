@@ -241,10 +241,11 @@ finalize_translations_local() {
 finalize_translations_repo() {
   local dir="$1" libs_ref="$2"
   shift 2
-  local lang_codes_arr=("$@")
-  finalize_translations_master "$dir" "$libs_ref"
+  local lang_codes_arr=("$@") lang_code
+
+  finalize_translations_master "$dir" "$libs_ref" || return $?
   for lang_code in "${lang_codes_arr[@]}"; do
-    finalize_translations_local "$dir" "$libs_ref" "$lang_code"
+    finalize_translations_local "$dir" "$libs_ref" "$lang_code" || return $?
   done
 }
 

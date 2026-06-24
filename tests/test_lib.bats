@@ -267,6 +267,34 @@ setup() {
   cleanup_git_fixture_root
 }
 
+@test "finalize_translations_repo: stops on first failure" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+
+  UPDATES=("algorithm")
+  SYNC_CALLS=()
+  sync_translations_branch() {
+    if [[ "$2" == "${MASTER_BRANCH}" ]]; then
+      return 1
+    fi
+    SYNC_CALLS+=("branch=$2 force=${4:-false}")
+  }
+
+  if run_fn finalize_translations_repo "$trans_dir" "develop" "en" "zh_Hans"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  [ "$rc" -eq 1 ]
+  [ "${#SYNC_CALLS[@]}" -eq 0 ]
+
+  cleanup_git_fixture_root
+}
+
 @test "begin_phase and end_phase: emit group markers and track CURRENT_PHASE" {
   local out_file="$BATS_TMPDIR/phase.out"
 

@@ -181,10 +181,6 @@ jobs:
           print_submodule_processing_summary
           [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."
-
-          updated_json=$(submodule_names_to_json "${UPDATES[@]}")
-          echo "updated_submodules=$updated_json" >> "$GITHUB_OUTPUT"
-          echo "Submodules for start-local: $updated_json" >&2
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations master"
@@ -195,12 +191,17 @@ jobs:
           exit_rc=0
           [[ $submodule_fatal -gt 0 ]] && exit_rc=1
           [[ $rc -ne 0 ]] && exit_rc=$rc
+          if [[ $exit_rc -eq 0 ]]; then
+            updated_json=$(submodule_names_to_json "${UPDATES[@]}")
+            echo "updated_submodules=$updated_json" >> "$GITHUB_OUTPUT"
+            echo "Submodules for start-local: $updated_json" >&2
+          fi
           [[ $exit_rc -ne 0 ]] && exit $exit_rc
 
           echo "Done." >&2
 
   start-local:
-    # always() lets this run when sync-mirrors exits non-zero after partial finalize.
+    # always() still evaluates outputs when sync-mirrors fails; updated_submodules is only set on full success.
     if: ${{ always() && !cancelled() && needs.setup.result == 'success' && needs.sync-mirrors.outputs.updated_submodules != '' && needs.sync-mirrors.outputs.updated_submodules != '[]' }}
     needs: [setup, sync-mirrors]
     runs-on: ubuntu-latest
