@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Summary buckets (doc metadata / skips); printed after Step 2.
+          # Summary buckets (doc metadata / skips); read by print_submodule_processing_summary.
           META_MISSING=()
           NO_DOC_PATHS=()
           REPO_EXISTS_SKIP=()
@@ -193,24 +193,28 @@ jobs:
               record_submodule_update "$sub" || true
             else
               rc=$?
-              [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))
+              if [[ $rc -eq 2 ]]; then
+                record_submodule_fatal "$sub"
+                submodule_fatal=$((submodule_fatal + 1))
+              fi
             fi
           done
 
-          echo "── Summary: Boost library documentation metadata ──" >&2
-          echo "  Type 1 — Missing or unreadable meta/libraries.json (${#META_MISSING[@]}): $([[ ${#META_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${META_MISSING[*]}")" >&2
-          echo "  Type 2 — No doc paths in meta/libraries.json (${#NO_DOC_PATHS[@]}): $([[ ${#NO_DOC_PATHS[@]} -eq 0 ]] && echo '(none)' || echo "${NO_DOC_PATHS[*]}")" >&2
-          echo "  Type 3 — Target org repo already exists, skipped (${#REPO_EXISTS_SKIP[@]}): $([[ ${#REPO_EXISTS_SKIP[@]} -eq 0 ]] && echo '(none)' || echo "${REPO_EXISTS_SKIP[*]}")" >&2
-
-          [[ $submodule_fatal -gt 0 ]] && {
+          # Buckets populated by process_one_submodule; read in print_submodule_processing_summary.
+          [[ ${#META_MISSING[@]} -ge 0 && ${#NO_DOC_PATHS[@]} -ge 0 && ${#REPO_EXISTS_SKIP[@]} -ge 0 ]]
+          print_submodule_processing_summary
+          [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."
-            end_phase
-            exit 1
-          }
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations repo"
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}"
+          rc=0
+          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}" || rc=$?
           end_phase
+
+          exit_rc=0
+          [[ $submodule_fatal -gt 0 ]] && exit_rc=1
+          [[ $rc -ne 0 ]] && exit_rc=$rc
+          [[ $exit_rc -ne 0 ]] && exit $exit_rc
 
           echo "Done." >&2

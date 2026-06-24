@@ -30,6 +30,27 @@ setup() {
   [ "$output" = "en" ]
 }
 
+@test "submodule_names_to_json: empty array" {
+  run submodule_names_to_json
+  [ "$status" -eq 0 ]
+  [ "$output" = "[]" ]
+}
+
+@test "submodule_names_to_json: encodes names" {
+  run submodule_names_to_json algorithm system
+  [ "$status" -eq 0 ]
+  [ "$output" = '["algorithm","system"]' ]
+}
+
+@test "parse_submodule_names_json: empty and populated" {
+  run parse_submodule_names_json '[]'
+  [ "$status" -eq 0 ]
+  [ -z "$output" ]
+  run parse_submodule_names_json '["algorithm","system"]'
+  [ "$status" -eq 0 ]
+  [ "$output" = $'algorithm\nsystem' ]
+}
+
 @test "parse_extensions: bracketed extensions" {
   run parse_extensions "[.adoc, .md]"
   [ "$status" -eq 0 ]
@@ -360,4 +381,56 @@ setup() {
   run trigger_weblate "https://weblate.example" "token" "develop" "[]" "en"
   [ "$status" -eq 1 ]
   [[ "$output" == *"invalid submodule name"* ]]
+}
+
+@test "record_submodule_fatal: deduplicates entries" {
+  init_translation_state
+  record_submodule_fatal "algorithm"
+  record_submodule_fatal "algorithm"
+  [ "${#SUBMODULE_FATAL[@]}" -eq 1 ]
+  [ "${SUBMODULE_FATAL[0]}" = "algorithm" ]
+}
+
+@test "print_submodule_processing_summary: empty state shows (none) for all buckets" {
+  load_lib
+  reset_process_globals
+  run print_submodule_processing_summary
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Submodule processing summary"* ]]
+  [[ "$output" == *"Successfully updated (0): (none)"* ]]
+  [[ "$output" == *"Failed — Type 1"*"(none)"* ]]
+  [[ "$output" == *"Failed — processing error (0): (none)"* ]]
+  [[ "$output" == *"Skipped — open translation PR (0): (none)"* ]]
+}
+
+@test "print_submodule_processing_summary: lists populated buckets" {
+  load_lib
+  reset_process_globals
+  UPDATES=("algorithm")
+  META_MISSING=("broken_meta")
+  NO_DOC_PATHS=("no_docs")
+  ORG_REPO_MISSING=("missing_repo")
+  REPO_EXISTS_SKIP=("existing_repo")
+  OPEN_PR_SKIP=("open_pr_lib")
+  SUBMODULE_FATAL=("broken_meta" "clone_failed")
+  run print_submodule_processing_summary
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Successfully updated (1): algorithm"* ]]
+  [[ "$output" == *"Failed — Type 1"*broken_meta* ]]
+  [[ "$output" == *"Failed — Type 3"*missing_repo* ]]
+  [[ "$output" == *"Failed — processing error (1): clone_failed"* ]]
+  [[ "$output" == *"Skipped — Type 2"*no_docs* ]]
+  [[ "$output" == *"Skipped — org repo already exists"*existing_repo* ]]
+  [[ "$output" == *"Skipped — open translation PR"*open_pr_lib* ]]
+}
+
+@test "print_submodule_processing_summary: does not double-list categorized fatal errors" {
+  load_lib
+  reset_process_globals
+  META_MISSING=("broken_meta")
+  SUBMODULE_FATAL=("broken_meta" "sync_failed")
+  run print_submodule_processing_summary
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Failed — processing error (1): sync_failed"* ]]
+  [[ "$output" != *"processing error (2)"* ]]
 }
