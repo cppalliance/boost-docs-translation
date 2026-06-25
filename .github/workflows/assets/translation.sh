@@ -26,6 +26,7 @@ sync_repo_master() {
 update_local_merge_from_master() {
   local repo_dir="$1" lang_code="$2"
   local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
+  set_git_bot_config "$repo_dir"
   git -C "$repo_dir" fetch origin "$MASTER_BRANCH" || return 2
   git -C "$repo_dir" fetch origin "$local_br" || return 2
   git -C "$repo_dir" checkout -B "$local_br" "origin/$local_br" || return 2
@@ -37,6 +38,7 @@ update_local_merge_from_master() {
 ensure_local_branch_in_repo() {
   local dest_repo="$1" sub_name="$2" lang_code="$3"
   local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
+  set_git_bot_config "$dest_repo"
   if git -C "$dest_repo" ls-remote --exit-code --heads origin "$local_br" &>/dev/null; then
     echo "  Branch $local_br already exists in $sub_name." >&2
     return 0
@@ -57,7 +59,11 @@ process_local_branch() {
   if git -C "$dest_repo" ls-remote --exit-code --heads origin "$local_br" &>/dev/null; then
     has_open_translation_pr "$MODULE_ORG" "$sub_name" "$lang_code"
     case $? in
-      0) echo "  Open translation PR found for $sub_name ($local_br), skipping." >&2; return 1 ;;
+      0)
+        OPEN_PR_SKIP+=("$sub_name")
+        echo "  Open translation PR found for $sub_name ($local_br), skipping." >&2
+        return 1
+        ;;
       2) return 2 ;;
     esac
     update_local_merge_from_master "$dest_repo" "$lang_code" || return 2
@@ -119,6 +125,7 @@ process_one_submodule() {
     clone_repo "$org_repo_url" "$MASTER_BRANCH" "$dest_repo" keep || {
       echo "  clone_repo failed." >&2; return 2
     }
+    set_git_bot_config "$dest_repo"
   fi
 
   local any_added=0 rc

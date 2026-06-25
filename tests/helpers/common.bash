@@ -44,6 +44,7 @@ reset_process_globals() {
   ORG_REPO_MISSING=()
   META_MISSING=()
   NO_DOC_PATHS=()
+  REPO_EXISTS_SKIP=()
   lang_codes_arr=()
   init_translation_state
 }

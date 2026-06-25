@@ -31,8 +31,10 @@ if [[ -z "${_ENV_SH_LOADED:-}" ]]; then
   )
 fi
 
-ORG="${GITHUB_REPOSITORY%%/*}"
-TRANSLATIONS_REPO="${GITHUB_REPOSITORY##*/}"
+_repo="${GITHUB_REPOSITORY:-}"
+ORG="${_repo%%/*}"
+TRANSLATIONS_REPO="${_repo##*/}"
+unset _repo
 
 BOT_NAME="Boost-Translation-CI-Bot"
 BOT_EMAIL="Boost-Translation-CI-Bot@$ORG.local"

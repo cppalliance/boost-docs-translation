@@ -10,7 +10,10 @@
 # Jobs:
 #   setup — validate lang_codes and emit matrix JSON.
 #   sync-mirrors — sync mirror master for all submodules; update super-repo master.
+#     On partial submodule failure: finalize successful pointers, then exit non-zero.
 #   start-local (matrix per lang) — local-{lang_code} in mirrors + super-repo + Weblate.
+#     Runs per language from setup when sync-mirrors produced successes (see job if:).
+#     Processes only submodules that succeeded in sync-mirrors.
 #
 # client_payload:
 #   lang_codes: (optional) Comma-separated lang codes (e.g. zh_Hans,ja). Defaults to vars.LANG_CODES.
@@ -64,6 +67,8 @@ jobs:
   sync-mirrors:
     needs: setup
     runs-on: ubuntu-latest
+    outputs:
+      updated_submodules: ${{ steps.sync.outputs.updated_submodules }}
     concurrency:
       group: translations-mirror-master
       cancel-in-progress: false
@@ -82,6 +87,7 @@ jobs:
           git checkout "$MASTER_BRANCH"
 
       - name: Sync mirror master
+        id: sync
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -92,9 +98,6 @@ jobs:
 
           # shellcheck disable=SC2034
           lang_codes_arr=()
-          META_MISSING=()
-          NO_DOC_PATHS=()
-          ORG_REPO_MISSING=()
 
           # shellcheck source=assets/env.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
@@ -104,6 +107,7 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
 
           init_translation_state
+          init_submodule_summary_buckets
 
           begin_phase "$PHASE_SETUP" "Prepare workspace"
           validate_secrets
@@ -138,6 +142,7 @@ jobs:
 
           [[ ${#submodule_names[@]} -eq 0 ]] && {
             echo "No libs/ submodules in .gitmodules, nothing to sync." >&2
+            echo "updated_submodules=[]" >> "$GITHUB_OUTPUT"
             end_phase
             exit 0
           }
@@ -162,31 +167,39 @@ jobs:
               record_submodule_update "$sub" || true
             else
               rc=$?
-              [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))
+              if [[ $rc -eq 2 ]]; then
+                record_submodule_fatal "$sub"
+                submodule_fatal=$((submodule_fatal + 1))
+              fi
             fi
           done
 
-          echo "── Summary: Boost library documentation metadata ──" >&2
-          echo "  Type 1 — Missing or unreadable meta/libraries.json (${#META_MISSING[@]}): $([[ ${#META_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${META_MISSING[*]}")" >&2
-          echo "  Type 2 — No doc paths in meta/libraries.json (${#NO_DOC_PATHS[@]}): $([[ ${#NO_DOC_PATHS[@]} -eq 0 ]] && echo '(none)' || echo "${NO_DOC_PATHS[*]}")" >&2
-          echo "  Type 3 — Lib repo missing in org (run add-submodules first) (${#ORG_REPO_MISSING[@]}): $([[ ${#ORG_REPO_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${ORG_REPO_MISSING[*]}")" >&2
-
-          [[ $submodule_fatal -gt 0 ]] && {
+          # Buckets filled by process_one_submodule.
+          print_submodule_processing_summary
+          [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."
-            end_phase
-            exit 1
-          }
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations master"
           rc=0
           finalize_translations_master "$TRANS_DIR" "$LIBS_REF" || rc=$?
           end_phase
-          [[ $rc -ne 0 ]] && exit $rc
+
+          exit_rc=0
+          [[ $submodule_fatal -gt 0 ]] && exit_rc=1
+          [[ $rc -ne 0 ]] && exit_rc=$rc
+          if [[ $exit_rc -eq 0 ]]; then
+            updated_json=$(submodule_names_to_json "${UPDATES[@]}")
+            echo "updated_submodules=$updated_json" >> "$GITHUB_OUTPUT"
+            echo "Submodules for start-local: $updated_json" >&2
+          fi
+          [[ $exit_rc -ne 0 ]] && exit $exit_rc
 
           echo "Done." >&2
 
   start-local:
+    # always() still evaluates outputs when sync-mirrors fails; updated_submodules is only set on full success.
+    if: ${{ always() && !cancelled() && needs.setup.result == 'success' && needs.sync-mirrors.outputs.updated_submodules != '' && needs.sync-mirrors.outputs.updated_submodules != '[]' }}
     needs: [setup, sync-mirrors]
     runs-on: ubuntu-latest
     strategy:
@@ -220,12 +233,9 @@ jobs:
           WEBLATE_URL: ${{ secrets.WEBLATE_URL }}
           WEBLATE_TOKEN: ${{ secrets.WEBLATE_TOKEN }}
           SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
+          SYNC_MIRROR_UPDATES: ${{ needs.sync-mirrors.outputs.updated_submodules }}
         run: |
           set -euo pipefail
-
-          META_MISSING=()
-          NO_DOC_PATHS=()
-          ORG_REPO_MISSING=()
 
           # shellcheck source=assets/env.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
@@ -235,6 +245,7 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
 
           init_translation_state
+          init_submodule_summary_buckets
 
           begin_phase "$PHASE_SETUP" "Prepare workspace"
           validate_secrets weblate
@@ -262,19 +273,11 @@ jobs:
           lang_codes_arr=("$LANG_CODE")
           init_add_or_update_lang "$LANG_CODE"
 
-          [[ ! -f .gitmodules ]] && {
-            phase_err ".gitmodules not found (run from translations repo with master checked out)"
-            end_phase
-            exit 1
-          }
-
-          mapfile -t submodule_names < <(
-            git config -f .gitmodules --get-regexp 'submodule\..*\.path' 2>/dev/null \
-              | awk '{print $2}' | { grep '^libs/' || true; } | sed 's|^libs/||'
-          )
+          echo "Submodules from sync-mirrors: ${SYNC_MIRROR_UPDATES:-[]}" >&2
+          mapfile -t submodule_names < <(parse_submodule_names_json "${SYNC_MIRROR_UPDATES:-[]}")
 
           [[ ${#submodule_names[@]} -eq 0 ]] && {
-            echo "No libs/ submodules in .gitmodules, nothing to sync." >&2
+            echo "No submodules succeeded in sync-mirrors, nothing to process." >&2
             end_phase
             exit 0
           }
@@ -301,38 +304,43 @@ jobs:
               record_submodule_update "$sub" || true
             else
               rc=$?
-              [[ $rc -eq 2 ]] && submodule_fatal=$((submodule_fatal + 1))
+              if [[ $rc -eq 2 ]]; then
+                record_submodule_fatal "$sub"
+                submodule_fatal=$((submodule_fatal + 1))
+              fi
             fi
           done
 
-          echo "── Summary: Boost library documentation metadata ──" >&2
-          echo "  Type 1 — Missing or unreadable meta/libraries.json (${#META_MISSING[@]}): $([[ ${#META_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${META_MISSING[*]}")" >&2
-          echo "  Type 2 — No doc paths in meta/libraries.json (${#NO_DOC_PATHS[@]}): $([[ ${#NO_DOC_PATHS[@]} -eq 0 ]] && echo '(none)' || echo "${NO_DOC_PATHS[*]}")" >&2
-          echo "  Type 3 — Lib repo missing in org (run add-submodules first) (${#ORG_REPO_MISSING[@]}): $([[ ${#ORG_REPO_MISSING[@]} -eq 0 ]] && echo '(none)' || echo "${ORG_REPO_MISSING[*]}")" >&2
-
-          [[ $submodule_fatal -gt 0 ]] && {
+          # Buckets filled by process_one_submodule.
+          print_submodule_processing_summary
+          [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."
-            end_phase
-            exit 1
-          }
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations local branch"
           rc=0
           finalize_translations_local "$TRANS_DIR" "$LIBS_REF" "$LANG_CODE" || rc=$?
           end_phase
-          [[ $rc -ne 0 ]] && exit $rc
 
-          begin_phase "$PHASE_TRIGGER_WEBLATE" "Trigger Weblate add-or-update"
-          ext_arr=()
-          [[ -n "${EXTENSIONS:-}" ]] && mapfile -t ext_arr < <(parse_extensions "$EXTENSIONS")
-          exts_json="[]"
-          [[ ${#ext_arr[@]} -gt 0 ]] && \
-            exts_json=$(printf '%s\n' "${ext_arr[@]}" | jq -R . | jq -s .)
+          weblate_rc=0
+          if [[ $rc -eq 0 ]]; then
+            begin_phase "$PHASE_TRIGGER_WEBLATE" "Trigger Weblate add-or-update"
+            ext_arr=()
+            [[ -n "${EXTENSIONS:-}" ]] && mapfile -t ext_arr < <(parse_extensions "$EXTENSIONS")
+            exts_json="[]"
+            [[ ${#ext_arr[@]} -gt 0 ]] && \
+              exts_json=$(printf '%s\n' "${ext_arr[@]}" | jq -R . | jq -s .)
 
-          rc=0
-          trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json" "$LANG_CODE" || rc=$?
-          end_phase
-          [[ $rc -ne 0 ]] && exit $rc
+            trigger_weblate "$WEBLATE_URL" "$WEBLATE_TOKEN" "$LIBS_REF" "$exts_json" "$LANG_CODE" || weblate_rc=$?
+            end_phase
+          else
+            echo "Skipping Weblate add-or-update: finalize_translations_local failed (rc=$rc)." >&2
+          fi
+
+          exit_rc=0
+          [[ $submodule_fatal -gt 0 ]] && exit_rc=1
+          [[ $rc -ne 0 ]] && exit_rc=$rc
+          [[ $weblate_rc -ne 0 ]] && exit_rc=$weblate_rc
+          [[ $exit_rc -ne 0 ]] && exit $exit_rc
 
           echo "Done." >&2

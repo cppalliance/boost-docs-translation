@@ -138,6 +138,7 @@ add_create_tag_workflow() {
     "$wf_dir/create-tag.yml"
   cp "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh" \
     "$wf_dir/assets/env.sh"
+  set_git_bot_config "$repo_dir"
   git -C "$repo_dir" add ".github/workflows/create-tag.yml" ".github/workflows/assets/env.sh"
   git -C "$repo_dir" commit -m "Add create-tag workflow"
 }
@@ -240,10 +241,11 @@ finalize_translations_local() {
 finalize_translations_repo() {
   local dir="$1" libs_ref="$2"
   shift 2
-  local lang_codes_arr=("$@")
-  finalize_translations_master "$dir" "$libs_ref"
+  local lang_codes_arr=("$@") lang_code
+
+  finalize_translations_master "$dir" "$libs_ref" || return $?
   for lang_code in "${lang_codes_arr[@]}"; do
-    finalize_translations_local "$dir" "$libs_ref" "$lang_code"
+    finalize_translations_local "$dir" "$libs_ref" "$lang_code" || return $?
   done
 }
 
@@ -260,9 +262,17 @@ finalize_translations_repo() {
 #     Submodule names eligible for Weblate per language; only submodules that
 #     passed process_local_branch. Written via record_add_or_update_submodule;
 #     consumed by trigger_weblate (translation.sh).
+#
+#   SUBMODULE_FATAL (indexed array)
+#     Submodule names that returned fatal (exit 2) from process_one_submodule.
+#
+#   OPEN_PR_SKIP (indexed array)
+#     Submodule names skipped due to an open translation PR (start-translation local).
 
 init_translation_state() {
   UPDATES=()
+  SUBMODULE_FATAL=()
+  OPEN_PR_SKIP=()
   declare -gA add_or_update=()
 }
 
@@ -299,6 +309,63 @@ _submodule_in_add_or_update() {
     [[ "$sub" == "$sub_name" ]] && return 0
   done
   return 1
+}
+
+_submodule_in_array() {
+  local name="$1"
+  shift
+  local item
+  for item in "$@"; do
+    [[ "$item" == "$name" ]] && return 0
+  done
+  return 1
+}
+
+# Append a fatal submodule name (idempotent on duplicate).
+record_submodule_fatal() {
+  local sub_name="$1"
+  _submodule_in_array "$sub_name" "${SUBMODULE_FATAL[@]}" && return 0
+  SUBMODULE_FATAL+=("$sub_name")
+}
+
+# Summary bucket globals; filled by process_one_submodule before print_submodule_processing_summary.
+init_submodule_summary_buckets() {
+  META_MISSING=()
+  NO_DOC_PATHS=()
+  ORG_REPO_MISSING=()
+}
+
+init_add_submodule_summary_buckets() {
+  META_MISSING=()
+  NO_DOC_PATHS=()
+  REPO_EXISTS_SKIP=()
+}
+
+# Print consolidated success / failure / skip summary after the per-submodule loop.
+print_submodule_processing_summary() {
+  local -a processing_errors=() repo_exists_skip=()
+  local -a meta_missing=() org_repo_missing=() no_doc_paths=()
+  local sub
+
+  [[ ${META_MISSING+set} ]] && meta_missing=("${META_MISSING[@]}")
+  [[ ${ORG_REPO_MISSING+set} ]] && org_repo_missing=("${ORG_REPO_MISSING[@]}")
+  [[ ${NO_DOC_PATHS+set} ]] && no_doc_paths=("${NO_DOC_PATHS[@]}")
+  [[ ${REPO_EXISTS_SKIP+set} ]] && repo_exists_skip=("${REPO_EXISTS_SKIP[@]}")
+
+  for sub in "${SUBMODULE_FATAL[@]}"; do
+    _submodule_in_array "$sub" "${meta_missing[@]}" && continue
+    _submodule_in_array "$sub" "${org_repo_missing[@]}" && continue
+    processing_errors+=("$sub")
+  done
+
+  echo "── Submodule processing summary ──" >&2
+  echo "  Successfully updated (${#UPDATES[@]}): $([[ ${#UPDATES[@]} -eq 0 ]] && echo '(none)' || echo "${UPDATES[*]}")" >&2
+  echo "  Failed — Type 1, missing meta/libraries.json (${#meta_missing[@]}): $([[ ${#meta_missing[@]} -eq 0 ]] && echo '(none)' || echo "${meta_missing[*]}")" >&2
+  echo "  Failed — Type 3, org repo missing (${#org_repo_missing[@]}): $([[ ${#org_repo_missing[@]} -eq 0 ]] && echo '(none)' || echo "${org_repo_missing[*]}")" >&2
+  echo "  Failed — processing error (${#processing_errors[@]}): $([[ ${#processing_errors[@]} -eq 0 ]] && echo '(none)' || echo "${processing_errors[*]}")" >&2
+  echo "  Skipped — Type 2, no doc paths (${#no_doc_paths[@]}): $([[ ${#no_doc_paths[@]} -eq 0 ]] && echo '(none)' || echo "${no_doc_paths[*]}")" >&2
+  echo "  Skipped — org repo already exists (${#repo_exists_skip[@]}): $([[ ${#repo_exists_skip[@]} -eq 0 ]] && echo '(none)' || echo "${repo_exists_skip[*]}")" >&2
+  echo "  Skipped — open translation PR (${#OPEN_PR_SKIP[@]}): $([[ ${#OPEN_PR_SKIP[@]} -eq 0 ]] && echo '(none)' || echo "${OPEN_PR_SKIP[*]}")" >&2
 }
 
 # Append a successfully processed submodule to UPDATES (idempotent on duplicate).
@@ -348,6 +415,22 @@ validate_add_or_update_entry() {
 }
 
 # ── Parsing helpers ───────────────────────────────────────────────────
+
+# Emit a compact JSON array of submodule basenames (empty → []).
+submodule_names_to_json() {
+  if [[ $# -eq 0 ]]; then
+    echo '[]'
+    return
+  fi
+  printf '%s\n' "$@" | jq -R . | jq -s -c .
+}
+
+# Parse JSON array of submodule basenames; one name per line (empty/no-op for []).
+parse_submodule_names_json() {
+  local json="${1:-}"
+  [[ -z "$json" || "$json" == "[]" ]] && return 0
+  jq -r '.[]' <<< "$json"
+}
 
 # Parse "[zh_Hans, en]" or "zh_Hans,en" into one code per line.
 parse_list() {
