@@ -78,12 +78,21 @@ EOF
     esac
   }
 
+  set +e
   process_submodule_list stub_processor ok skip fail
+  status=$?
+  set -e
+  [ "$status" -eq 1 ]
   [ "${#UPDATES[@]}" -eq 1 ]
   [ "${UPDATES[0]}" = "ok" ]
   [ "${#SUBMODULE_FATAL[@]}" -eq 1 ]
   [ "${SUBMODULE_FATAL[0]}" = "fail" ]
   [ "$submodule_fatal" -eq 1 ]
+}
+
+@test "process_submodule_list: returns 0 when no fatal failures" {
+  stub_processor() { return 0; }
+  process_submodule_list stub_processor ok ok
 }
 
 @test "combine_batch_and_finalize_rc: zero when no failures" {
@@ -100,6 +109,12 @@ EOF
 
 @test "combine_batch_and_finalize_rc: finalize rc wins when non-zero" {
   submodule_fatal=0
+  run combine_batch_and_finalize_rc 3
+  [ "$status" -eq 3 ]
+}
+
+@test "combine_batch_and_finalize_rc: finalize rc wins over batch fatal" {
+  submodule_fatal=2
   run combine_batch_and_finalize_rc 3
   [ "$status" -eq 3 ]
 }

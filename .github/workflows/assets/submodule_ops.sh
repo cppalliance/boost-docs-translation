@@ -104,8 +104,11 @@ process_submodule_list() {
     fi
   done
   print_submodule_processing_summary
-  [[ $submodule_fatal -gt 0 ]] && \
+  if [[ $submodule_fatal -gt 0 ]]; then
     phase_err "$submodule_fatal submodule(s) failed with errors."
+    return 1
+  fi
+  return 0
 }
 
 # Combine submodule_fatal count with finalize_rc; return combined exit code.
