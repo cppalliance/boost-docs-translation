@@ -19,8 +19,21 @@ case "$cmd" in
     if [[ "${1:-}" == "view" ]]; then
       exit "${MOCK_REPO_VIEW_EXIT:-0}"
     fi
+    if [[ "${1:-}" == "create" ]]; then
+      shift || true
+      spec="${1:-}"
+      if [[ -n "${GIT_FIXTURE_ROOT:-}" && -n "$spec" ]]; then
+        bare="${GIT_FIXTURE_ROOT}/remotes/${spec}.git"
+        mkdir -p "$(dirname "$bare")"
+        git init --bare "$bare" >/dev/null 2>&1
+      fi
+      exit 0
+    fi
     ;;
   api)
+    if [[ "${1:-}" == "--method" && "${2:-}" == "PATCH" ]]; then
+      exit 0
+    fi
     api_url="${*}"
     if [[ "$api_url" == *libraries.json* ]]; then
       if [[ -n "${MOCK_LIBRARIES_FIXTURE:-}" && -f "$MOCK_LIBRARIES_FIXTURE" ]]; then

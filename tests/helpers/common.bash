@@ -25,6 +25,13 @@ load_translation() {
   source "$ASSETS_DIR/translation.sh"
 }
 
+load_add_submodules() {
+  load_lib
+  export GITHUB_WORKSPACE="$REPO_ROOT"
+  # shellcheck source=/dev/null
+  source "$ASSETS_DIR/add_submodules.sh"
+}
+
 # Run a function and capture its exit code (works under set -e in callers).
 run_fn() {
   local errexit_was_on=0
@@ -54,7 +61,13 @@ init_process_globals() {
   # Fixed values so tests behave the same locally and in CI (GITHUB_REPOSITORY varies).
   MODULE_ORG="testorg"
   BOOST_ORG="boostorg"
+  boost_org="$BOOST_ORG"
   libs_ref="develop"
   lang_codes_arr=("en")
   init_add_or_update_lang "en"
+}
+
+init_add_submodule_globals() {
+  init_process_globals
+  init_add_submodule_summary_buckets
 }
