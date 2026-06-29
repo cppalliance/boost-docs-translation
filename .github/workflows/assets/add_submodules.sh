@@ -7,19 +7,19 @@
 
 create_repo() {
   gh repo create "$1/$2" --public > /dev/null \
-    || { echo "Create repo $1/$2 failed" >&2; return 1; }
+    || { echo "Create repo $1/$2 failed" >&2; return 2; }
 }
 
 set_default_branch() {
   gh api --method PATCH "repos/$1/$2" -f "default_branch=$3" \
-    || { phase_err "set default branch to $3 failed for $1/$2."; return 1; }
+    || { phase_err "set default branch to $3 failed for $1/$2."; return 2; }
 }
 
 create_new_repo_and_push() {
   local org="$1" sub_name="$2" sub_clone="$3" repo_url="$4" libs_ref="$5"
   create_repo "$org" "$sub_name" || return 2
   git -C "$sub_clone" init || return 2
-  set_git_bot_config "$sub_clone"
+  set_git_bot_config "$sub_clone" || return 2
   git -C "$sub_clone" add -A || return 2
   git -C "$sub_clone" commit -m "Create the original documentation of $libs_ref" || return 2
   git -C "$sub_clone" branch -M "$MASTER_BRANCH" || return 2
@@ -63,5 +63,6 @@ add_one_submodule() {
   prune_to_doc_only "$sub_clone" "${paths_arr[@]}"
 
   local org_repo_url="https://github.com/${MODULE_ORG}/${sub_name}.git"
-  create_new_repo_and_push "$MODULE_ORG" "$sub_name" "$sub_clone" "$org_repo_url" "$libs_ref"
+  create_new_repo_and_push "$MODULE_ORG" "$sub_name" "$sub_clone" "$org_repo_url" "$libs_ref" \
+    || return 2
 }

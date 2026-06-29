@@ -112,6 +112,18 @@ install_algorithm_add_fixtures() {
   [ "$status" -eq 2 ]
 }
 
+@test "add_one_submodule: returns 2 when repo create fails" {
+  install_algorithm_add_fixtures
+  export MOCK_REPO_CREATE_EXIT=1
+
+  set +e
+  add_one_submodule "algorithm"
+  status=$?
+  set -e
+
+  [ "$status" -eq 2 ]
+}
+
 @test "add_one_submodule: returns 0 on success path" {
   install_algorithm_add_fixtures
 
@@ -128,4 +140,8 @@ install_algorithm_add_fixtures() {
   [ -d "$mirror_bare" ]
   git -C "$mirror_bare" show-ref --verify --quiet "refs/heads/$MASTER_BRANCH"
   git -C "$mirror_bare" show-ref --verify --quiet "refs/heads/${LOCAL_BRANCH_PREFIX}en"
+
+  [ -f "$MOCK_GH_PATCH_LOG" ]
+  grep -Fq "repos/${MODULE_ORG}/algorithm" "$MOCK_GH_PATCH_LOG"
+  grep -Fq "default_branch=${MASTER_BRANCH}" "$MOCK_GH_PATCH_LOG"
 }
