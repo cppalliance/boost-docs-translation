@@ -171,6 +171,7 @@ echo "lint: actionlint ${ACTIONLINT_VERSION} ($("$ACTIONLINT_BIN" -version | hea
   .github/workflows/assets/lib.sh \
   .github/workflows/assets/translation.sh \
   .github/workflows/assets/add_submodules.sh \
+  .github/workflows/assets/submodule_ops.sh \
   scripts/*.sh \
   tests/helpers/*.bash
 
