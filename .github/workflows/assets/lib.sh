@@ -264,7 +264,7 @@ finalize_translations_repo() {
 #     consumed by trigger_weblate (translation.sh).
 #
 #   SUBMODULE_FATAL (indexed array)
-#     Submodule names that returned fatal (exit 2) from process_one_submodule.
+#     Submodule names that returned fatal (exit 2) from add_one_submodule or sync_one_submodule.
 #
 #   OPEN_PR_SKIP (indexed array)
 #     Submodule names skipped due to an open translation PR (start-translation local).
@@ -328,7 +328,8 @@ record_submodule_fatal() {
   SUBMODULE_FATAL+=("$sub_name")
 }
 
-# Summary bucket globals; filled by process_one_submodule before print_submodule_processing_summary.
+# Summary bucket globals; filled by sync_one_submodule before print_submodule_processing_summary.
+# add-submodules uses init_add_submodule_summary_buckets for REPO_EXISTS_SKIP.
 init_submodule_summary_buckets() {
   META_MISSING=()
   NO_DOC_PATHS=()

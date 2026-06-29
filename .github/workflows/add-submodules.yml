@@ -107,7 +107,8 @@ jobs:
 
           # ── Per-submodule processing ──────────────────────────────────────────
 
-          process_one_submodule() {
+          # Create one MODULE_ORG mirror repo from a boostorg lib (add-submodules only).
+          add_one_submodule() {
             local sub_name="$1" doc_paths
 
             if repo_exists "$MODULE_ORG" "$sub_name"; then
@@ -185,7 +186,7 @@ jobs:
           for i in "${!submodule_names[@]}"; do
             sub="${submodule_names[$i]}"
             echo "[$(( i + 1 ))/$total] $sub ..." >&2
-            if process_one_submodule "$sub"; then
+            if add_one_submodule "$sub"; then
               record_submodule_update "$sub" || true
             else
               rc=$?
@@ -196,7 +197,7 @@ jobs:
             fi
           done
 
-          # Buckets filled by process_one_submodule.
+          # Buckets filled by add_one_submodule.
           print_submodule_processing_summary
           [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."

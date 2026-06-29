@@ -63,11 +63,11 @@ install_algorithm_process_fixtures() {
   }
 }
 
-@test "process_one_submodule: returns 2 when mirror repo missing" {
+@test "sync_one_submodule: returns 2 when mirror repo missing" {
   export MOCK_REPO_VIEW_EXIT=1
 
   set +e
-  process_one_submodule "missing-lib"
+  sync_one_submodule "missing-lib"
   status=$?
   set -e
 
@@ -75,11 +75,11 @@ install_algorithm_process_fixtures() {
   [[ " ${ORG_REPO_MISSING[*]} " == *" missing-lib "* ]]
 }
 
-@test "process_one_submodule: returns 1 when metadata has no doc paths" {
+@test "sync_one_submodule: returns 1 when metadata has no doc paths" {
   export MOCK_LIBRARIES_FIXTURE="$FIXTURES_DIR/libraries-empty.json"
 
   set +e
-  process_one_submodule "algorithm"
+  sync_one_submodule "algorithm"
   status=$?
   set -e
 
@@ -87,11 +87,11 @@ install_algorithm_process_fixtures() {
   [[ " ${NO_DOC_PATHS[*]} " == *" algorithm "* ]]
 }
 
-@test "process_one_submodule: returns 0 on success path" {
+@test "sync_one_submodule: returns 0 on success path" {
   install_algorithm_process_fixtures
 
   set +e
-  process_one_submodule "algorithm"
+  sync_one_submodule "algorithm"
   status=$?
   set -e
 
@@ -100,11 +100,11 @@ install_algorithm_process_fixtures() {
   [ "${#CLONE_URLS[@]}" -eq 2 ]
 }
 
-@test "process_one_submodule: returns 2 for invalid START_PHASE" {
+@test "sync_one_submodule: returns 2 for invalid START_PHASE" {
   export START_PHASE=mirror
 
   set +e
-  err=$(process_one_submodule "algorithm" 2>&1 >/dev/null)
+  err=$(sync_one_submodule "algorithm" 2>&1 >/dev/null)
   status=$?
   set -e
 
@@ -112,12 +112,12 @@ install_algorithm_process_fixtures() {
   [[ "$err" == *"invalid START_PHASE='mirror'"* ]]
 }
 
-@test "process_one_submodule: START_PHASE=mirrors returns after mirror sync" {
+@test "sync_one_submodule: START_PHASE=mirrors returns after mirror sync" {
   export START_PHASE=mirrors
   install_algorithm_process_fixtures
 
   set +e
-  process_one_submodule "algorithm"
+  sync_one_submodule "algorithm"
   status=$?
   set -e
 
@@ -128,12 +128,12 @@ install_algorithm_process_fixtures() {
   [[ -z "${add_or_update[en]:-}" ]]
 }
 
-@test "process_one_submodule: START_PHASE=local skips upstream clone" {
+@test "sync_one_submodule: START_PHASE=local skips upstream clone" {
   export START_PHASE=local
   install_algorithm_process_fixtures
 
   set +e
-  process_one_submodule "algorithm"
+  sync_one_submodule "algorithm"
   status=$?
   set -e
 

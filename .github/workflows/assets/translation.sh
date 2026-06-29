@@ -73,7 +73,8 @@ process_local_branch() {
   return 0
 }
 
-process_one_submodule() {
+# Sync one existing MODULE_ORG mirror: mirror master and/or local branches.
+sync_one_submodule() {
   local sub_name="$1" doc_paths
   local phase="${START_PHASE:-}"
 
