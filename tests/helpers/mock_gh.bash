@@ -19,8 +19,27 @@ case "$cmd" in
     if [[ "${1:-}" == "view" ]]; then
       exit "${MOCK_REPO_VIEW_EXIT:-0}"
     fi
+    if [[ "${1:-}" == "create" ]]; then
+      shift || true
+      spec="${1:-}"
+      if [[ "${MOCK_REPO_CREATE_EXIT:-0}" -ne 0 ]]; then
+        exit "${MOCK_REPO_CREATE_EXIT}"
+      fi
+      if [[ -n "${GIT_FIXTURE_ROOT:-}" && -n "$spec" ]]; then
+        bare="${GIT_FIXTURE_ROOT}/remotes/${spec}.git"
+        mkdir -p "$(dirname "$bare")"
+        git init --bare "$bare" >/dev/null 2>&1
+      fi
+      exit 0
+    fi
     ;;
   api)
+    if [[ "${1:-}" == "--method" && "${2:-}" == "PATCH" ]]; then
+      if [[ -n "${MOCK_GH_PATCH_LOG:-}" ]]; then
+        printf '%s\n' "$*" >> "$MOCK_GH_PATCH_LOG"
+      fi
+      exit "${MOCK_GH_PATCH_EXIT:-0}"
+    fi
     api_url="${*}"
     if [[ "$api_url" == *libraries.json* ]]; then
       if [[ -n "${MOCK_LIBRARIES_FIXTURE:-}" && -f "$MOCK_LIBRARIES_FIXTURE" ]]; then
@@ -59,12 +78,19 @@ restore_mock_gh() {
   fi
   unset MOCK_GH_DIR _ORIG_PATH
   unset MOCK_REPO_VIEW_EXIT MOCK_LIBRARIES_FIXTURE MOCK_GH_API_EXIT
+  unset MOCK_REPO_CREATE_EXIT MOCK_GH_PATCH_LOG MOCK_GH_PATCH_EXIT
   unset MOCK_PR_LIST_STDOUT MOCK_PR_LIST_STDERR MOCK_PR_LIST_EXIT
 }
 
 reset_mock_gh() {
   export MOCK_REPO_VIEW_EXIT=0
-  unset MOCK_LIBRARIES_FIXTURE MOCK_GH_API_EXIT
+  export MOCK_GH_PATCH_EXIT=0
+  unset MOCK_LIBRARIES_FIXTURE MOCK_GH_API_EXIT MOCK_REPO_CREATE_EXIT
   unset MOCK_PR_LIST_STDOUT MOCK_PR_LIST_STDERR MOCK_PR_LIST_EXIT
   export MOCK_PR_LIST_EXIT=0
+  if [[ -n "${MOCK_GH_DIR:-}" ]]; then
+    MOCK_GH_PATCH_LOG="$MOCK_GH_DIR/gh-patch.log"
+    : > "$MOCK_GH_PATCH_LOG"
+    export MOCK_GH_PATCH_LOG
+  fi
 }

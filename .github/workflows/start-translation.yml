@@ -42,7 +42,7 @@ jobs:
       json: ${{ steps.langs.outputs.json }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           token: ${{ secrets.SYNC_TOKEN }}
           persist-credentials: false
@@ -74,7 +74,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           token: ${{ secrets.SYNC_TOKEN }}
           persist-credentials: false
@@ -163,7 +163,7 @@ jobs:
           for i in "${!submodule_names[@]}"; do
             sub="${submodule_names[$i]}"
             echo "[$(( i + 1 ))/$total] $sub ..." >&2
-            if process_one_submodule "$sub"; then
+            if sync_one_submodule "$sub"; then
               record_submodule_update "$sub" || true
             else
               rc=$?
@@ -174,7 +174,7 @@ jobs:
             fi
           done
 
-          # Buckets filled by process_one_submodule.
+          # Buckets filled by sync_one_submodule.
           print_submodule_processing_summary
           [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."
@@ -211,7 +211,7 @@ jobs:
       cancel-in-progress: false
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           token: ${{ secrets.SYNC_TOKEN }}
           persist-credentials: false
@@ -268,7 +268,7 @@ jobs:
 
           echo "Lang code: $LANG_CODE" >&2
 
-          # Read by process_one_submodule in translation.sh (sourced above).
+          # Read by sync_one_submodule in translation.sh (sourced above).
           # shellcheck disable=SC2034
           lang_codes_arr=("$LANG_CODE")
           init_add_or_update_lang "$LANG_CODE"
@@ -300,7 +300,7 @@ jobs:
           for i in "${!submodule_names[@]}"; do
             sub="${submodule_names[$i]}"
             echo "[$(( i + 1 ))/$total] $sub ..." >&2
-            if process_one_submodule "$sub"; then
+            if sync_one_submodule "$sub"; then
               record_submodule_update "$sub" || true
             else
               rc=$?
@@ -311,7 +311,7 @@ jobs:
             fi
           done
 
-          # Buckets filled by process_one_submodule.
+          # Buckets filled by sync_one_submodule.
           print_submodule_processing_summary
           [[ $submodule_fatal -gt 0 ]] && \
             phase_err "$submodule_fatal submodule(s) failed with errors."

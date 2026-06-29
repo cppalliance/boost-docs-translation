@@ -4,6 +4,7 @@
 
 init_git_fixture_root() {
   GIT_FIXTURE_ROOT="$(mktemp -d)"
+  export GIT_FIXTURE_ROOT
 }
 
 cleanup_git_fixture_root() {
@@ -54,4 +55,17 @@ create_prune_fixture_dir() {
   echo "src" >"$dir/src/main.cpp"
   echo "wf" >"$dir/.github/workflows/ci.yml"
   echo "other" >"$dir/minmax/other/data.txt"
+}
+
+# Rewrite https://github.com/ pushes to local bare remotes under GIT_FIXTURE_ROOT/remotes/.
+configure_github_url_rewrite() {
+  GITHUB_URL_REWRITE_KEY="url.file://${GIT_FIXTURE_ROOT}/remotes/.insteadOf"
+  git config --global "$GITHUB_URL_REWRITE_KEY" "https://github.com/"
+}
+
+cleanup_github_url_rewrite() {
+  if [[ -n "${GITHUB_URL_REWRITE_KEY:-}" ]]; then
+    git config --global --unset-all "$GITHUB_URL_REWRITE_KEY" 2>/dev/null || true
+    unset GITHUB_URL_REWRITE_KEY
+  fi
 }
