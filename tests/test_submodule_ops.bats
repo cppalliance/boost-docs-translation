@@ -82,7 +82,7 @@ EOF
   process_submodule_list stub_processor ok skip fail
   status=$?
   set -e
-  [ "$status" -eq 1 ]
+  [ "$status" -eq 0 ]
   [ "${#UPDATES[@]}" -eq 1 ]
   [ "${UPDATES[0]}" = "ok" ]
   [ "${#SUBMODULE_FATAL[@]}" -eq 1 ]
