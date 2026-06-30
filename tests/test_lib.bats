@@ -295,6 +295,105 @@ setup() {
   cleanup_git_fixture_root
 }
 
+@test "finalize_translations_local: rejects stale force-with-lease push" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+
+  UPDATES=("algorithm")
+  update_translations_submodule() { :; }
+
+  install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance"
+
+  local stderr_file="$BATS_TMPDIR/finalize-lease-stderr"
+  set +e
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
+  rc=$?
+  set -e
+
+  restore_git_push_pre_hook
+
+  [ "$rc" -ne 0 ]
+  remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  grep -q "${LOCAL_BRANCH_PREFIX}en" "$stderr_file"
+  grep -q "$remote_sha" "$stderr_file"
+  grep -q "force-with-lease push rejected" "$stderr_file"
+  [ -z "$(git -C "$trans_dir" status --porcelain)" ]
+  [ ! -f "$trans_dir/.git/index.lock" ]
+  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
+
+  cleanup_git_fixture_root
+}
+
+@test "finalize_translations_local: fail-fast on lease rejection (no retry)" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+
+  UPDATES=("algorithm")
+  update_translations_submodule() { :; }
+
+  local fetch_counter="$BATS_TMPDIR/fetch-count"
+  : >"$fetch_counter"
+  install_git_fetch_counter "$fetch_counter" "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance"
+
+  remote_sha_before=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+
+  set +e
+  finalize_translations_local "$trans_dir" "develop" "en" 2>/dev/null
+  rc=$?
+  set -e
+
+  restore_git_push_pre_hook
+
+  [ "$rc" -ne 0 ]
+  [ "$(wc -l <"$fetch_counter")" -eq 1 ]
+  remote_sha_after=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  [ "$remote_sha_before" != "$remote_sha_after" ]
+  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha_after" | grep -q "concurrent advance"
+
+  cleanup_git_fixture_root
+}
+
+@test "commit_and_push_translations_branch: clear error when force-with-lease unsupported" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+  git -C "$trans_dir" checkout "${LOCAL_BRANCH_PREFIX}en"
+
+  install_git_without_force_with_lease
+
+  local stderr_file="$BATS_TMPDIR/push-unsupported-stderr"
+  set +e
+  commit_and_push_translations_branch "$trans_dir" "${LOCAL_BRANCH_PREFIX}en" "develop" true \
+    2>"$stderr_file"
+  rc=$?
+  set -e
+
+  restore_git_push_pre_hook
+
+  [ "$rc" -ne 0 ]
+  grep -q "force-with-lease is not supported" "$stderr_file"
+  grep -q "upgrade Git to 2.8+" "$stderr_file"
+
+  cleanup_git_fixture_root
+}
+
 @test "begin_phase and end_phase: emit group markers and track CURRENT_PHASE" {
   local out_file="$BATS_TMPDIR/phase.out"
 

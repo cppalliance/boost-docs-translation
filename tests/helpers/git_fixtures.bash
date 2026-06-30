@@ -69,3 +69,110 @@ cleanup_github_url_rewrite() {
     unset GITHUB_URL_REWRITE_KEY
   fi
 }
+
+# Push a new commit onto a remote branch from a side clone (concurrent writer simulation).
+push_commit_to_remote_branch() {
+  local bare="$1" branch="$2" message="${3:-concurrent advance}"
+  local tmp
+  tmp="$(mktemp -d)"
+  git clone "$bare" "$tmp"
+  git -C "$tmp" config user.email "test@test.local"
+  git -C "$tmp" config user.name "Test"
+  git -C "$tmp" checkout "$branch"
+  echo "$message" >>"$tmp/README"
+  git -C "$tmp" add README
+  git -C "$tmp" commit -m "$message"
+  git -C "$tmp" push origin "$branch"
+  rm -rf "$tmp"
+}
+
+# Prepend a git wrapper to PATH that advances remote branch before push --force-with-lease.
+install_git_push_pre_hook() {
+  local bare="$1" branch="$2" message="${3:-concurrent advance}"
+  local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
+  REAL_GIT="$(command -v git)"
+  export REAL_GIT
+  export GIT_HOOK_BARE_REMOTE="$bare" GIT_HOOK_BRANCH="$branch" GIT_HOOK_MESSAGE="$message"
+  mkdir -p "$wrapper_dir"
+  cat >"$wrapper_dir/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "-C" && "${3:-}" == "push" && "$*" == *"--force-with-lease"* ]]; then
+  tmp="$(mktemp -d)"
+  "$REAL_GIT" clone "$GIT_HOOK_BARE_REMOTE" "$tmp"
+  "$REAL_GIT" -C "$tmp" config user.email "test@test.local"
+  "$REAL_GIT" -C "$tmp" config user.name "Test"
+  "$REAL_GIT" -C "$tmp" checkout "$GIT_HOOK_BRANCH"
+  echo "$GIT_HOOK_MESSAGE" >>"$tmp/README"
+  "$REAL_GIT" -C "$tmp" add README
+  "$REAL_GIT" -C "$tmp" commit -m "$GIT_HOOK_MESSAGE"
+  "$REAL_GIT" -C "$tmp" push origin "$GIT_HOOK_BRANCH"
+  rm -rf "$tmp"
+fi
+exec "$REAL_GIT" "$@"
+EOF
+  chmod +x "$wrapper_dir/git"
+  GIT_WRAPPER_DIR="$wrapper_dir"
+  export PATH="$wrapper_dir:$PATH"
+}
+
+restore_git_push_pre_hook() {
+  if [[ -n "${GIT_WRAPPER_DIR:-}" ]]; then
+    PATH="${PATH#"$GIT_WRAPPER_DIR:"}"
+    export PATH
+    rm -rf "$GIT_WRAPPER_DIR"
+    unset GIT_WRAPPER_DIR REAL_GIT
+    unset GIT_HOOK_BARE_REMOTE GIT_HOOK_BRANCH GIT_HOOK_MESSAGE GIT_FETCH_COUNTER_FILE
+  fi
+}
+
+# Prepend a git wrapper that hides --force-with-lease from push -h (simulates pre-2.8 git).
+install_git_without_force_with_lease() {
+  local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
+  REAL_GIT="$(command -v git)"
+  export REAL_GIT
+  mkdir -p "$wrapper_dir"
+  cat >"$wrapper_dir/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "push" && "${2:-}" == "-h" ]]; then
+  "$REAL_GIT" push -h 2>&1 | grep -v 'force-with-lease'
+  exit 0
+fi
+exec "$REAL_GIT" "$@"
+EOF
+  chmod +x "$wrapper_dir/git"
+  GIT_WRAPPER_DIR="$wrapper_dir"
+  export PATH="$wrapper_dir:$PATH"
+}
+
+# Prepend a git wrapper that counts fetch invocations and optionally injects concurrent push.
+install_git_fetch_counter() {
+  local counter_file="$1"
+  local bare="${2:-}" branch="${3:-}" message="${4:-concurrent advance}"
+  local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
+  REAL_GIT="$(command -v git)"
+  export REAL_GIT GIT_FETCH_COUNTER_FILE="$counter_file"
+  export GIT_HOOK_BARE_REMOTE="$bare" GIT_HOOK_BRANCH="$branch" GIT_HOOK_MESSAGE="$message"
+  mkdir -p "$wrapper_dir"
+  cat >"$wrapper_dir/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "-C" && "${3:-}" == "fetch" ]]; then
+  echo 1 >>"$GIT_FETCH_COUNTER_FILE"
+fi
+if [[ "${1:-}" == "-C" && "${3:-}" == "push" && "$*" == *"--force-with-lease"* && -n "${GIT_HOOK_BARE_REMOTE:-}" ]]; then
+  tmp="$(mktemp -d)"
+  "$REAL_GIT" clone "$GIT_HOOK_BARE_REMOTE" "$tmp"
+  "$REAL_GIT" -C "$tmp" config user.email "test@test.local"
+  "$REAL_GIT" -C "$tmp" config user.name "Test"
+  "$REAL_GIT" -C "$tmp" checkout "$GIT_HOOK_BRANCH"
+  echo "$GIT_HOOK_MESSAGE" >>"$tmp/README"
+  "$REAL_GIT" -C "$tmp" add README
+  "$REAL_GIT" -C "$tmp" commit -m "$GIT_HOOK_MESSAGE"
+  "$REAL_GIT" -C "$tmp" push origin "$GIT_HOOK_BRANCH"
+  rm -rf "$tmp"
+fi
+exec "$REAL_GIT" "$@"
+EOF
+  chmod +x "$wrapper_dir/git"
+  GIT_WRAPPER_DIR="$wrapper_dir"
+  export PATH="$wrapper_dir:$PATH"
+}

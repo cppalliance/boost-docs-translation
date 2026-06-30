@@ -198,8 +198,13 @@ update_translations_submodule() {
   fi
 }
 
+git_push_supports_force_with_lease() {
+  git push -h 2>&1 | grep -qF 'force-with-lease'
+}
+
 commit_and_push_translations_branch() {
   local dir="$1" branch="$2" libs_ref="$3" force="${4:-false}"
+  local push_rc remote_sha
   git -C "$dir" status --short
   if git -C "$dir" diff --cached --quiet; then
     echo "  No staged submodule changes on $branch; skipping commit." >&2
@@ -207,7 +212,17 @@ commit_and_push_translations_branch() {
     git -C "$dir" commit -m "Update libs submodules to $libs_ref"
   fi
   if [[ "$force" == "true" ]]; then
+    if ! git_push_supports_force_with_lease; then
+      phase_err "git push --force-with-lease is not supported; upgrade Git to 2.8+"
+      return 1
+    fi
     git -C "$dir" push --force-with-lease origin "$branch"
+    push_rc=$?
+    if [[ $push_rc -ne 0 ]]; then
+      remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')
+      phase_err "force-with-lease push rejected for branch $branch (remote HEAD=${remote_sha:-unknown}); remote may have advanced concurrently — re-run after fetch or resolve manually."
+      return "$push_rc"
+    fi
   else
     git -C "$dir" push origin "$branch"
   fi
