@@ -213,12 +213,13 @@ commit_and_push_translations_branch() {
   fi
   if [[ "$force" == "true" ]]; then
     if ! git_push_supports_force_with_lease; then
-      phase_err "git push --force-with-lease is not supported; upgrade Git to 2.8+"
+      phase_err "git push --force-with-lease is not supported by this Git installation"
       return 1
     fi
-    git -C "$dir" push --force-with-lease origin "$branch"
-    push_rc=$?
-    if [[ $push_rc -ne 0 ]]; then
+    if git -C "$dir" push --force-with-lease origin "$branch"; then
+      :
+    else
+      push_rc=$?
       remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')
       phase_err "force-with-lease push rejected for branch $branch (remote HEAD=${remote_sha:-unknown}); remote may have advanced concurrently — re-run after fetch or resolve manually."
       return "$push_rc"
