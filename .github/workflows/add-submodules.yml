@@ -21,6 +21,10 @@ on:
     # Must match EVENT_ADD_SUBMODULES in assets/env.sh
     types: [add-submodules]
 
+concurrency:
+  group: add-submodules-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   add-submodules:
     runs-on: ubuntu-latest
