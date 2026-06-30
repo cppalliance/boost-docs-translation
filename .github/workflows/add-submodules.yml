@@ -40,113 +40,12 @@ jobs:
           SUBMODULES_ORG: ${{ vars.SUBMODULES_ORG }}
         run: |
           set -euo pipefail
-
           # shellcheck source=assets/env.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           # shellcheck source=assets/add_submodules.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/add_submodules.sh"
-
-          init_translation_state
-          init_add_submodule_summary_buckets
-
-          begin_phase "$PHASE_SETUP" "Validate inputs and prepare workspace"
-          validate_secrets
-          parse_and_validate_lang_codes
-          echo "Lang codes: ${lang_codes_arr[*]}" >&2
-
-          WORK_DIR=$(mktemp -d)
-          trap 'rm -rf "$WORK_DIR"' EXIT
-          BOOST_WORK="$WORK_DIR/boost"
-          TRANS_DIR="$WORK_DIR/translations"
-          mkdir -p "$BOOST_WORK"
-
-          # Configure git credential helper so all github.com pushes are authenticated
-          # without embedding tokens in remote URLs.
-          gh auth setup-git
-
-          # libs_ref and boost_org are read by add_submodules.sh (sourced).
-          # shellcheck disable=SC2153,SC2034
-          libs_ref="${LIBS_REF:?}"
-          # shellcheck disable=SC2153,SC2034
-          boost_org="${BOOST_ORG:?}"
-          end_phase
-
-          # ── Main ─────────────────────────────────────────────────────────────
-
-          begin_phase "$PHASE_ENSURE_BRANCHES" "Ensure local branches in translations repo"
-          rc=0
-          ensure_translations_cloned "$ORG" "$TRANSLATIONS_REPO" "$TRANS_DIR" || rc=$?
-          if [[ $rc -eq 0 ]]; then
-            for lang_code in "${lang_codes_arr[@]}"; do
-              ensure_local_branch_in_translations "$TRANS_DIR" "$lang_code" || rc=$?
-              [[ $rc -ne 0 ]] && break
-            done
-          fi
-          end_phase
-          [[ $rc -ne 0 ]] && exit $rc
-
-          begin_phase "$PHASE_PROCESS_SUBMODULES" "Process submodules"
-          if [[ -n "${SUBMODULES:-}" ]]; then
-            mapfile -t submodule_names < <(parse_list "$SUBMODULES")
-            echo "Using ${#submodule_names[@]} submodules from input." >&2
-          else
-            # Fetch .gitmodules from boostorg/boost at LIBS_REF to discover all libs/ submodules.
-            echo "Fetching .gitmodules from boostorg/boost at $LIBS_REF..." >&2
-            gitmodules_content=$(gh api \
-              "repos/boostorg/boost/contents/.gitmodules?ref=$LIBS_REF" \
-              -H "Accept: application/vnd.github.v3.raw" 2>/dev/null) || {
-              phase_err "Failed to fetch .gitmodules"
-              end_phase
-              exit 1
-            }
-            mapfile -t submodule_names < <(
-              echo "$gitmodules_content" \
-                | grep '^\s*path\s*=' \
-                | sed 's/.*=\s*//' \
-                | { grep '^libs/' || true; } \
-                | sed 's|^libs/||'
-            )
-            echo "Found ${#submodule_names[@]} libs submodules." >&2
-          fi
-
-          [[ ${#submodule_names[@]} -eq 0 ]] && {
-            echo "No submodules to process, nothing to do." >&2
-            end_phase
-            exit 0
-          }
-
-          total=${#submodule_names[@]}
-          submodule_fatal=0
-          for i in "${!submodule_names[@]}"; do
-            sub="${submodule_names[$i]}"
-            echo "[$(( i + 1 ))/$total] $sub ..." >&2
-            if add_one_submodule "$sub"; then
-              record_submodule_update "$sub" || true
-            else
-              rc=$?
-              if [[ $rc -eq 2 ]]; then
-                record_submodule_fatal "$sub"
-                submodule_fatal=$((submodule_fatal + 1))
-              fi
-            fi
-          done
-
-          # Buckets filled by add_one_submodule.
-          print_submodule_processing_summary
-          [[ $submodule_fatal -gt 0 ]] && \
-            phase_err "$submodule_fatal submodule(s) failed with errors."
-          end_phase
-
-          begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations repo"
-          finalize_rc=0
-          finalize_translations_repo "$TRANS_DIR" "$LIBS_REF" "${lang_codes_arr[@]}" || finalize_rc=$?
-          end_phase
-
-          exit_rc=0
-          [[ $submodule_fatal -gt 0 ]] && exit_rc=1
-          [[ $finalize_rc -ne 0 ]] && exit_rc=$finalize_rc
-          [[ $exit_rc -ne 0 ]] && exit $exit_rc
-
-          echo "Done." >&2
+          # shellcheck source=assets/submodule_ops.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/submodule_ops.sh"
+          add_submodules_main

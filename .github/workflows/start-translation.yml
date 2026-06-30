@@ -105,6 +105,8 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+          # shellcheck source=assets/submodule_ops.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/submodule_ops.sh"
 
           init_translation_state
           init_submodule_summary_buckets
@@ -112,12 +114,7 @@ jobs:
           begin_phase "$PHASE_SETUP" "Prepare workspace"
           validate_secrets
 
-          WORK_DIR=$(mktemp -d)
-          trap 'rm -rf "$WORK_DIR"' EXIT
-          BOOST_WORK="$WORK_DIR/boost"
-          TRANS_DIR="$WORK_DIR/translations"
-          mkdir -p "$BOOST_WORK"
-
+          init_translation_work_dirs with_org_work
           gh auth setup-git
 
           # shellcheck disable=SC2034
@@ -126,19 +123,13 @@ jobs:
           # shellcheck disable=SC2034
           libs_ref="${LIBS_REF:?}"
 
-          ORG_WORK="$WORK_DIR/$MODULE_ORG"
-          mkdir -p "$ORG_WORK"
-
           [[ ! -f .gitmodules ]] && {
             phase_err ".gitmodules not found (run from translations repo with master checked out)"
             end_phase
             exit 1
           }
 
-          mapfile -t submodule_names < <(
-            git config -f .gitmodules --get-regexp 'submodule\..*\.path' 2>/dev/null \
-              | awk '{print $2}' | { grep '^libs/' || true; } | sed 's|^libs/||'
-          )
+          mapfile -t submodule_names < <(libs_submodule_names_from_gitmodules_file ".gitmodules")
 
           [[ ${#submodule_names[@]} -eq 0 ]] && {
             echo "No libs/ submodules in .gitmodules, nothing to sync." >&2
@@ -158,26 +149,7 @@ jobs:
             exit $rc
           fi
 
-          total=${#submodule_names[@]}
-          submodule_fatal=0
-          for i in "${!submodule_names[@]}"; do
-            sub="${submodule_names[$i]}"
-            echo "[$(( i + 1 ))/$total] $sub ..." >&2
-            if sync_one_submodule "$sub"; then
-              record_submodule_update "$sub" || true
-            else
-              rc=$?
-              if [[ $rc -eq 2 ]]; then
-                record_submodule_fatal "$sub"
-                submodule_fatal=$((submodule_fatal + 1))
-              fi
-            fi
-          done
-
-          # Buckets filled by sync_one_submodule.
-          print_submodule_processing_summary
-          [[ $submodule_fatal -gt 0 ]] && \
-            phase_err "$submodule_fatal submodule(s) failed with errors."
+          process_submodule_list sync_one_submodule "${submodule_names[@]}"
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations master"
@@ -185,17 +157,15 @@ jobs:
           finalize_translations_master "$TRANS_DIR" "$LIBS_REF" || rc=$?
           end_phase
 
-          exit_rc=0
-          [[ $submodule_fatal -gt 0 ]] && exit_rc=1
-          [[ $rc -ne 0 ]] && exit_rc=$rc
-          if [[ $exit_rc -eq 0 ]]; then
+          combine_batch_and_finalize_rc "$rc" || exit_rc=$?
+          if [[ ${exit_rc:-0} -eq 0 ]]; then
             updated_json=$(submodule_names_to_json "${UPDATES[@]}")
             echo "updated_submodules=$updated_json" >> "$GITHUB_OUTPUT"
             echo "Submodules for start-local: $updated_json" >&2
+            echo "Done." >&2
+          else
+            exit "$exit_rc"
           fi
-          [[ $exit_rc -ne 0 ]] && exit $exit_rc
-
-          echo "Done." >&2
 
   start-local:
     # always() still evaluates outputs when sync-mirrors fails; updated_submodules is only set on full success.
@@ -243,6 +213,8 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           # shellcheck source=assets/translation.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/translation.sh"
+          # shellcheck source=assets/submodule_ops.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/submodule_ops.sh"
 
           init_translation_state
           init_submodule_summary_buckets
@@ -250,21 +222,13 @@ jobs:
           begin_phase "$PHASE_SETUP" "Prepare workspace"
           validate_secrets weblate
 
-          WORK_DIR=$(mktemp -d)
-          trap 'rm -rf "$WORK_DIR"' EXIT
-          BOOST_WORK="$WORK_DIR/boost"
-          TRANS_DIR="$WORK_DIR/translations"
-          mkdir -p "$BOOST_WORK"
-
+          init_translation_work_dirs with_org_work
           gh auth setup-git
 
           # shellcheck disable=SC2034
           START_PHASE="$START_PHASE_LOCAL"
           # shellcheck disable=SC2034,SC2153
           libs_ref="${LIBS_REF:?}"
-
-          ORG_WORK="$WORK_DIR/$MODULE_ORG"
-          mkdir -p "$ORG_WORK"
 
           echo "Lang code: $LANG_CODE" >&2
 
@@ -295,26 +259,7 @@ jobs:
           begin_phase "$PHASE_PROCESS_SUBMODULES" "Process local branches"
           echo "Processing local branches for ${#submodule_names[@]} submodules." >&2
 
-          total=${#submodule_names[@]}
-          submodule_fatal=0
-          for i in "${!submodule_names[@]}"; do
-            sub="${submodule_names[$i]}"
-            echo "[$(( i + 1 ))/$total] $sub ..." >&2
-            if sync_one_submodule "$sub"; then
-              record_submodule_update "$sub" || true
-            else
-              rc=$?
-              if [[ $rc -eq 2 ]]; then
-                record_submodule_fatal "$sub"
-                submodule_fatal=$((submodule_fatal + 1))
-              fi
-            fi
-          done
-
-          # Buckets filled by sync_one_submodule.
-          print_submodule_processing_summary
-          [[ $submodule_fatal -gt 0 ]] && \
-            phase_err "$submodule_fatal submodule(s) failed with errors."
+          process_submodule_list sync_one_submodule "${submodule_names[@]}"
           end_phase
 
           begin_phase "$PHASE_FINALIZE_TRANSLATIONS" "Finalize translations local branch"

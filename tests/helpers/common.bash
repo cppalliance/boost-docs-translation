@@ -32,6 +32,15 @@ load_add_submodules() {
   source "$ASSETS_DIR/add_submodules.sh"
 }
 
+load_submodule_ops() {
+  load_lib
+  export GITHUB_WORKSPACE="$REPO_ROOT"
+  # shellcheck source=/dev/null
+  source "$ASSETS_DIR/add_submodules.sh"
+  # shellcheck source=/dev/null
+  source "$ASSETS_DIR/submodule_ops.sh"
+}
+
 # Run a function and capture its exit code (works under set -e in callers).
 run_fn() {
   local errexit_was_on=0
