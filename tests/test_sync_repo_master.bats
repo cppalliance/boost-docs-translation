@@ -31,10 +31,7 @@ install_sync_repo_master_fixtures() {
   install_sync_repo_master_fixtures
   remote_before=$(git -C "$mirror_bare" rev-parse "$MASTER_BRANCH")
 
-  set +e
-  sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
-  status=$?
-  set -e
+  run sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
 
   [ "$status" -eq 0 ]
   remote_after=$(git -C "$mirror_bare" rev-parse "$MASTER_BRANCH")
@@ -53,10 +50,7 @@ install_sync_repo_master_fixtures() {
   sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
   remote_after_first=$(git -C "$mirror_bare" rev-parse "$MASTER_BRANCH")
 
-  set +e
-  sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
-  status=$?
-  set -e
+  run sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
 
   [ "$status" -eq 0 ]
   remote_after_second=$(git -C "$mirror_bare" rev-parse "$MASTER_BRANCH")
@@ -71,10 +65,7 @@ install_sync_repo_master_fixtures() {
 
   echo "new doc" >"$sub_clone/doc/page.adoc"
 
-  set +e
-  sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
-  status=$?
-  set -e
+  run sync_repo_master "$dest_repo" "$sub_clone" "$libs_ref"
 
   [ "$status" -eq 2 ]
   git -C "$mirror_bare" log -1 --format=%s "$MASTER_BRANCH" | grep -q "concurrent advance"

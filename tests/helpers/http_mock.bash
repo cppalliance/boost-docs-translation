@@ -3,6 +3,7 @@
 
 MOCK_WEBLATE_PID=""
 MOCK_WEBLATE_PORT=""
+MOCK_WEBLATE_PORT_FILE=""
 MOCK_WEBLATE_BASE_URL=""
 MOCK_WEBLATE_REQUEST_LOG=""
 MOCK_WEBLATE_SERVER_SCRIPT=""
@@ -14,11 +15,10 @@ start_weblate_mock_server() {
   local delay="${MOCK_WEBLATE_DELAY_SEC:-0}"
 
   MOCK_WEBLATE_REQUEST_LOG="$(mktemp)"
+  MOCK_WEBLATE_PORT_FILE="$(mktemp)"
   MOCK_WEBLATE_SERVER_SCRIPT="$(mktemp)"
   cat >"$MOCK_WEBLATE_SERVER_SCRIPT" <<'PYEOF'
-import json
 import os
-import sys
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -26,7 +26,7 @@ status = int(os.environ.get("MOCK_WEBLATE_STATUS", "202"))
 body = os.environ.get("MOCK_WEBLATE_BODY", '{"status":"accepted"}')
 delay = float(os.environ.get("MOCK_WEBLATE_DELAY_SEC", "0"))
 request_log = os.environ["MOCK_WEBLATE_REQUEST_LOG"]
-port = int(sys.argv[1])
+port_file = os.environ["MOCK_WEBLATE_PORT_FILE"]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -53,29 +53,43 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
 
-server = HTTPServer(("127.0.0.1", port), Handler)
+server = HTTPServer(("127.0.0.1", 0), Handler)
+with open(port_file, "w", encoding="utf-8") as f:
+    f.write(str(server.server_port))
 server.serve_forever()
 PYEOF
 
-  MOCK_WEBLATE_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
   export MOCK_WEBLATE_STATUS="$status" MOCK_WEBLATE_BODY="$body" MOCK_WEBLATE_DELAY_SEC="$delay"
-  export MOCK_WEBLATE_REQUEST_LOG
-  python3 "$MOCK_WEBLATE_SERVER_SCRIPT" "$MOCK_WEBLATE_PORT" &
+  export MOCK_WEBLATE_REQUEST_LOG MOCK_WEBLATE_PORT_FILE
+  python3 "$MOCK_WEBLATE_SERVER_SCRIPT" &
   MOCK_WEBLATE_PID=$!
 
-  local i=0
-  while ! python3 -c "import socket; s=socket.create_connection(('127.0.0.1', $MOCK_WEBLATE_PORT), 0.2); s.close()" 2>/dev/null; do
+  local i=0 port=""
+  while [[ -z "$port" ]]; do
+    if [[ -s "$MOCK_WEBLATE_PORT_FILE" ]]; then
+      port="$(<"$MOCK_WEBLATE_PORT_FILE")"
+      if python3 -c "import socket; s=socket.create_connection(('127.0.0.1', $port), 0.2); s.close()" 2>/dev/null; then
+        break
+      fi
+      port=""
+    fi
+    if ! kill -0 "$MOCK_WEBLATE_PID" 2>/dev/null; then
+      stop_weblate_mock_server
+      echo "http_mock: mock server exited before binding" >&2
+      return 1
+    fi
     i=$((i + 1))
     if [[ $i -gt 50 ]]; then
       stop_weblate_mock_server
-      echo "http_mock: mock server failed to start on port $MOCK_WEBLATE_PORT" >&2
+      echo "http_mock: mock server failed to start" >&2
       return 1
     fi
     sleep 0.05
   done
 
+  MOCK_WEBLATE_PORT="$port"
   MOCK_WEBLATE_BASE_URL="http://127.0.0.1:${MOCK_WEBLATE_PORT}/"
-  export MOCK_WEBLATE_BASE_URL
+  export MOCK_WEBLATE_PORT MOCK_WEBLATE_BASE_URL
 }
 
 stop_weblate_mock_server() {
@@ -85,8 +99,10 @@ stop_weblate_mock_server() {
   fi
   [[ -n "${MOCK_WEBLATE_SERVER_SCRIPT:-}" && -f "$MOCK_WEBLATE_SERVER_SCRIPT" ]] && rm -f "$MOCK_WEBLATE_SERVER_SCRIPT"
   [[ -n "${MOCK_WEBLATE_REQUEST_LOG:-}" && -f "$MOCK_WEBLATE_REQUEST_LOG" ]] && rm -f "$MOCK_WEBLATE_REQUEST_LOG"
+  [[ -n "${MOCK_WEBLATE_PORT_FILE:-}" && -f "$MOCK_WEBLATE_PORT_FILE" ]] && rm -f "$MOCK_WEBLATE_PORT_FILE"
   MOCK_WEBLATE_PID=""
   MOCK_WEBLATE_PORT=""
+  MOCK_WEBLATE_PORT_FILE=""
   MOCK_WEBLATE_BASE_URL=""
   MOCK_WEBLATE_REQUEST_LOG=""
   MOCK_WEBLATE_SERVER_SCRIPT=""

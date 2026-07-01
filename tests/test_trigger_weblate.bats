@@ -34,11 +34,12 @@ teardown() {
   grep -q "HEADER:Authorization: Token $WEBLATE_TOKEN" "$MOCK_WEBLATE_REQUEST_LOG"
   grep -q "HEADER:Content-Type: application/json" "$MOCK_WEBLATE_REQUEST_LOG"
   body_json=$(sed -n '/^BODY_START$/,/^BODY_END$/p' "$MOCK_WEBLATE_REQUEST_LOG" | sed '1d;$d')
-  echo "$body_json" | jq -e '.organization' >/dev/null
-  echo "$body_json" | jq -e '.version' >/dev/null
-  echo "$body_json" | jq -e '.extensions' >/dev/null
-  echo "$body_json" | jq -e '.add_or_update.en | index("algorithm")' >/dev/null
-  echo "$body_json" | jq -e '.add_or_update.en | index("system")' >/dev/null
+  [ "$(echo "$body_json" | jq -r '.organization')" = "$MODULE_ORG" ]
+  [ "$(echo "$body_json" | jq -r '.version')" = "$libs_ref" ]
+  echo "$body_json" | jq -e --argjson expected_exts "$exts_json" \
+    '.extensions | type == "array" and . == $expected_exts' >/dev/null
+  echo "$body_json" | jq -e \
+    '.add_or_update | type == "object" and has("en") and (.en | type == "array") and .en == ["algorithm","system"]' >/dev/null
   grep -q "boost-endpoint/add-or-update" "$MOCK_WEBLATE_REQUEST_LOG"
 }
 
