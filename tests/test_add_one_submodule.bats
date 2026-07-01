@@ -144,4 +144,6 @@ install_algorithm_add_fixtures() {
   [ -f "$MOCK_GH_PATCH_LOG" ]
   grep -Fq "repos/${MODULE_ORG}/algorithm" "$MOCK_GH_PATCH_LOG"
   grep -Fq "default_branch=${MASTER_BRANCH}" "$MOCK_GH_PATCH_LOG"
+  git -C "$mirror_bare" log -1 --format=%s "$MASTER_BRANCH" \
+    | grep -F "Create the original documentation of $libs_ref"
 }
