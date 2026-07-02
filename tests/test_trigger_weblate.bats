@@ -93,6 +93,28 @@ teardown() {
   [[ "$output" == *"Response detail: Conflict"* ]]
 }
 
+@test "trigger_weblate: client error on unhandled HTTP 405" {
+  MOCK_WEBLATE_STATUS=405
+  MOCK_WEBLATE_BODY='{"detail":"Method not allowed"}'
+  start_weblate_mock_server
+
+  run trigger_weblate "$MOCK_WEBLATE_BASE_URL" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Weblate client error (HTTP 405)"* ]]
+  [[ "$output" == *"Inspect the request payload"* ]]
+}
+
+@test "trigger_weblate: unexpected response on non-4xx/5xx HTTP status" {
+  MOCK_WEBLATE_STATUS=301
+  MOCK_WEBLATE_BODY='{"detail":"Moved permanently"}'
+  start_weblate_mock_server
+
+  run trigger_weblate "$MOCK_WEBLATE_BASE_URL" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Weblate unexpected response (HTTP 301)"* ]]
+  [[ "$output" == *"Check the endpoint URL"* ]]
+}
+
 @test "trigger_weblate: server error on HTTP 503" {
   MOCK_WEBLATE_STATUS=503
   MOCK_WEBLATE_BODY='{"detail":"Service unavailable"}'

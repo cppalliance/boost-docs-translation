@@ -170,13 +170,17 @@ report_weblate_post_error() {
         message="Weblate payload rejected (HTTP $http_code)."
         remediation="Review add_or_update, submodule names, version, and extensions."
         ;;
+      4??)
+        message="Weblate client error (HTTP $http_code)."
+        remediation="Inspect the request payload, endpoint URL, and API contract."
+        ;;
       5??)
         message="Weblate server/network error (HTTP $http_code)."
         remediation="Retry later; check Weblate service health."
         ;;
       *)
-        message="Weblate server/network error (HTTP $http_code)."
-        remediation="Retry later; check Weblate service health."
+        message="Weblate unexpected response (HTTP $http_code)."
+        remediation="Check the endpoint URL and Weblate API contract for this status code."
         ;;
     esac
   fi
