@@ -142,6 +142,61 @@ sync_one_submodule() {
   [[ $any_added -eq 1 ]]
 }
 
+# Classify and log Weblate POST failures with remediation hints.
+# Args: curl_exit http_code resp_file (http_code ignored when curl_exit != 0).
+report_weblate_post_error() {
+  local curl_exit="$1" http_code="$2" resp_file="$3"
+  local message remediation detail
+
+  if [[ $curl_exit -ne 0 ]]; then
+    if [[ $curl_exit -eq 28 ]]; then
+      message="Weblate request timed out (curl exit 28)."
+      remediation="Retry later; check Weblate availability and network connectivity."
+    else
+      message="Weblate server/network error (curl exit $curl_exit)."
+      remediation="Retry later; check Weblate service health."
+    fi
+  else
+    case "$http_code" in
+      401|403)
+        message="Weblate auth failure (HTTP $http_code)."
+        remediation="Verify WEBLATE_TOKEN secret and endpoint permissions."
+        ;;
+      429)
+        message="Weblate rate limit (HTTP 429)."
+        remediation="Wait and retry; reduce trigger frequency."
+        ;;
+      400|404|409|422)
+        message="Weblate payload rejected (HTTP $http_code)."
+        remediation="Review add_or_update, submodule names, version, and extensions."
+        ;;
+      4??)
+        message="Weblate client error (HTTP $http_code)."
+        remediation="Inspect the request payload, endpoint URL, and API contract."
+        ;;
+      5??)
+        message="Weblate server/network error (HTTP $http_code)."
+        remediation="Retry later; check Weblate service health."
+        ;;
+      *)
+        message="Weblate unexpected response (HTTP $http_code)."
+        remediation="Check the endpoint URL and Weblate API contract for this status code."
+        ;;
+    esac
+  fi
+
+  phase_err "$message"
+  echo "Remediation: $remediation" >&2
+
+  if [[ -s "$resp_file" ]]; then
+    detail=$(jq -r '.detail // .message // .error // empty' "$resp_file" 2>/dev/null || true)
+    if [[ -n "$detail" ]]; then
+      echo "Response detail: $detail" >&2
+    fi
+    cat "$resp_file" >&2 || true
+  fi
+}
+
 # POST add-or-update payload to Weblate for one language.
 # Reads add_or_update[lang_code]; skips when empty; validates names before POST.
 trigger_weblate() {
@@ -188,8 +243,7 @@ trigger_weblate() {
   ) || curl_exit=$?
 
   if [[ $curl_exit -ne 0 ]]; then
-    phase_err "Weblate trigger failed (curl exit $curl_exit)."
-    cat "$resp" >&2 || true
+    report_weblate_post_error "$curl_exit" "" "$resp"
     rm -f "$resp"
     return 1
   fi
@@ -204,8 +258,7 @@ trigger_weblate() {
       cat "$resp" >&2 || true
       ;;
     *)
-      phase_err "Weblate returned HTTP $http_code (expected 202)."
-      cat "$resp" >&2 || true
+      report_weblate_post_error 0 "$http_code" "$resp"
       rm -f "$resp"
       return 1
       ;;

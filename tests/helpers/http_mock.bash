@@ -110,6 +110,10 @@ stop_weblate_mock_server() {
 }
 
 install_curl_timeout_stub() {
+  install_curl_stub
+}
+
+install_curl_stub() {
   _CURL_ORIG_PATH="$PATH"
   local wrapper_dir
   wrapper_dir="$(mktemp -d)"
@@ -117,6 +121,10 @@ install_curl_timeout_stub() {
   export REAL_CURL
   cat >"$wrapper_dir/curl" <<'EOF'
 #!/usr/bin/env bash
+if [[ -n "${MOCK_CURL_EXIT:-}" ]]; then
+  echo "mock curl: simulated exit ${MOCK_CURL_EXIT}" >&2
+  exit "$MOCK_CURL_EXIT"
+fi
 if [[ "${MOCK_CURL_TIMEOUT:-}" == "1" ]]; then
   echo "mock curl: simulated timeout" >&2
   exit 28
@@ -135,5 +143,5 @@ restore_curl_stub() {
   if [[ -n "${CURL_WRAPPER_DIR:-}" && -d "$CURL_WRAPPER_DIR" ]]; then
     rm -rf "$CURL_WRAPPER_DIR"
   fi
-  unset CURL_WRAPPER_DIR REAL_CURL _CURL_ORIG_PATH MOCK_CURL_TIMEOUT
+  unset CURL_WRAPPER_DIR REAL_CURL _CURL_ORIG_PATH MOCK_CURL_TIMEOUT MOCK_CURL_EXIT
 }
