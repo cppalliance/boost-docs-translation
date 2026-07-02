@@ -58,31 +58,68 @@ teardown() {
   grep -q "Weblate returned HTTP 200" "$BATS_TMPDIR/weblate-200.stderr"
 }
 
-@test "trigger_weblate: fails on HTTP 403" {
+@test "trigger_weblate: auth failure on HTTP 403" {
   MOCK_WEBLATE_STATUS=403
   MOCK_WEBLATE_BODY='{"detail":"Forbidden"}'
   start_weblate_mock_server
 
   run trigger_weblate "$MOCK_WEBLATE_BASE_URL" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"Weblate returned HTTP 403"* ]]
+  [[ "$output" == *"Weblate auth failure (HTTP 403)"* ]]
+  [[ "$output" == *"Verify WEBLATE_TOKEN"* ]]
+  [[ "$output" == *"Response detail: Forbidden"* ]]
 }
 
-@test "trigger_weblate: fails on HTTP 409" {
+@test "trigger_weblate: rate-limit failure on HTTP 429" {
+  MOCK_WEBLATE_STATUS=429
+  MOCK_WEBLATE_BODY='{"detail":"Too many requests"}'
+  start_weblate_mock_server
+
+  run trigger_weblate "$MOCK_WEBLATE_BASE_URL" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Weblate rate limit (HTTP 429)"* ]]
+  [[ "$output" == *"Wait and retry"* ]]
+}
+
+@test "trigger_weblate: payload failure on HTTP 409" {
   MOCK_WEBLATE_STATUS=409
   MOCK_WEBLATE_BODY='{"detail":"Conflict"}'
   start_weblate_mock_server
 
   run trigger_weblate "$MOCK_WEBLATE_BASE_URL" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"Weblate returned HTTP 409"* ]]
+  [[ "$output" == *"Weblate payload rejected (HTTP 409)"* ]]
+  [[ "$output" == *"Review add_or_update"* ]]
+  [[ "$output" == *"Response detail: Conflict"* ]]
 }
 
-@test "trigger_weblate: fails on curl timeout" {
+@test "trigger_weblate: server error on HTTP 503" {
+  MOCK_WEBLATE_STATUS=503
+  MOCK_WEBLATE_BODY='{"detail":"Service unavailable"}'
+  start_weblate_mock_server
+
+  run trigger_weblate "$MOCK_WEBLATE_BASE_URL" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Weblate server/network error (HTTP 503)"* ]]
+  [[ "$output" == *"Retry later"* ]]
+}
+
+@test "trigger_weblate: timeout on curl exit 28" {
   install_curl_timeout_stub
   export MOCK_CURL_TIMEOUT=1
 
   run trigger_weblate "http://127.0.0.1:9" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
   [ "$status" -eq 1 ]
-  [[ "$output" == *"curl exit 28"* ]]
+  [[ "$output" == *"Weblate request timed out (curl exit 28)"* ]]
+  [[ "$output" == *"Retry later"* ]]
+}
+
+@test "trigger_weblate: server error on curl connection failure" {
+  install_curl_stub
+  export MOCK_CURL_EXIT=7
+
+  run trigger_weblate "http://127.0.0.1:9" "$WEBLATE_TOKEN" "$libs_ref" "$exts_json" "en"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Weblate server/network error (curl exit 7)"* ]]
+  [[ "$output" == *"Retry later"* ]]
 }
