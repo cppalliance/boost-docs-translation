@@ -6,7 +6,7 @@ All file paths below are relative to the root of **this** repository.
 
 ## Overview
 
-**GitHub REST API** — `POST /repos/{owner}/{repo}/dispatches` runs workflows via `repository_dispatch`. Helper scripts live under `scripts/`. `sync-translation` can also start on a **daily schedule** inside GitHub Actions (not an HTTP call you make).
+**GitHub REST API** — `POST /repos/{owner}/{repo}/dispatches` runs workflows via `repository_dispatch`. Helper scripts live under `scripts/`. `sync-translation` can also start on a **daily schedule** inside GitHub Actions (not an HTTP call you make). For the full operator sequence (secrets → dispatch order → ongoing sync), see [OPERATOR.md](OPERATOR.md).
 
 ```mermaid
 flowchart LR

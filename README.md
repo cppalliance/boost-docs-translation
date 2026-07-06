@@ -16,6 +16,9 @@ different org.
 
 For system context, branch model, and data flows, see **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
+For a step-by-step operator checklist (secrets → dispatch order → ongoing sync), see
+**[OPERATOR.md](docs/OPERATOR.md)**.
+
 ---
 
 ## Integration contracts
@@ -25,6 +28,8 @@ HTTP surfaces are described in **[`docs/endpoint-contract.md`](docs/endpoint-con
 ---
 
 ## Workflows
+
+Summary checklist: **[OPERATOR.md](docs/OPERATOR.md)**.
 
 ### `add-submodules.yml` — Create library mirrors and register submodules
 
