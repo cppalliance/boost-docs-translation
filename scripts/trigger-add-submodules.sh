@@ -7,6 +7,9 @@
 # Requires: curl; jq or Python 3 (python3 / python) to build JSON
 # Auth: repo-root .env (GH_TOKEN / GITHUB_TOKEN), env, or --token (repo scope for the target repo).
 #
+# Exit codes: 0 = success (including --help), 1 = any error. Does not use the asset-script
+# 0/1/2 batch convention (see docs/ARCHITECTURE.md §6).
+#
 # Usage:
 #   scripts/trigger-add-submodules.sh [--repo OWNER/NAME] [--token PAT] \
 #     [--version REF] [--submodules 'a, b'] [--lang-codes zh_Hans,ja]

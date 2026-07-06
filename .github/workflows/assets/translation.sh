@@ -7,6 +7,10 @@
 # Translation state (UPDATES, add_or_update): init via init_translation_state /
 # init_add_or_update_lang; write via record_*; read by finalize_translations_* /
 # trigger_weblate.
+#
+# Per-submodule batch return convention (see docs/ARCHITECTURE.md §6):
+#   0 = success, 1 = non-fatal skip, 2 = fatal error.
+# process_submodule_list collapses 2 → submodule_fatal; workflows exit 0 or non-zero.
 # shellcheck disable=SC2034,SC2154
 
 # Wipe dest_repo (except .git), copy pruned source, commit, push master only.
