@@ -3,7 +3,8 @@
 Step-by-step checklist from zero configuration to a running Boost documentation
 translation. For per-workflow detail see [README.md](../README.md); for design and
 return codes see [ARCHITECTURE.md](ARCHITECTURE.md); for HTTP/dispatch shapes see
-[endpoint-contract.md](endpoint-contract.md).
+[endpoint-contract.md](endpoint-contract.md). If you pin automation to a semver tag,
+check [CHANGELOG.md](../CHANGELOG.md) before upgrading.
 
 ```mermaid
 flowchart TD

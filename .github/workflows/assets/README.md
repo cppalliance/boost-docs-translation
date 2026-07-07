@@ -52,3 +52,15 @@ No placeholder substitution is needed; the repo name is resolved at runtime from
 `github.event.repository.name`.
 
 The workflow must exist on the repo's default branch (`master`) to be triggered by PR events.
+
+### Tag namespaces
+
+Do **not** confuse mirror content tags with orchestration semver on the super-repo:
+
+| Namespace | Repository | Format | Example | Created by |
+| --------- | ---------- | ------ | ------- | ---------- |
+| **Orchestration release** | Super-repo (`boost-docs-translation`) | `v{MAJOR}.{MINOR}.{PATCH}` | `v1.0.0` | Maintainer manual tag; see [CHANGELOG.md](../../../CHANGELOG.md) and [README § Releases](../../../README.md#releases) |
+| **Mirror content** | Each library mirror | `{version}-{repo}-{lang_code}` | `boost-1.90.0-algorithm-zh_Hans` | This workflow (`create-tag.yml`) on PR merge |
+
+`create-tag.yml` only produces **mirror content** tags. It does not version the
+orchestration repo's dispatch contract, workflow inputs, or shell exit-code semantics.
