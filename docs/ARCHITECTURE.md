@@ -2,7 +2,8 @@
 
 This document describes **why** the system is shaped the way it is, **how** the main
 pieces relate, and **which** concerns cut across workflows. For triggers, secrets,
-and copy-paste examples, see [README.md](../README.md).
+and copy-paste examples, see [README.md](../README.md). For a zero-to-operational
+runbook, see [OPERATOR.md](OPERATOR.md).
 
 ---
 
@@ -147,7 +148,95 @@ holds **actual file** merges from **`master`** plus translator edits.
 
 ---
 
-## 6. Cross-cutting concerns
+## 6. Shell return codes
+
+Per-submodule processors in **`.github/workflows/assets/`** share a **three-code return
+convention**. Workflow steps collapse these into a **job exit status** (0 or non-zero;
+**`2` is never propagated** to the GitHub Actions step exit code).
+
+```mermaid
+flowchart TD
+  subgraph processors [Per-submodule processors]
+    A0["0 success"]
+    A1["1 non-fatal skip"]
+    A2["2 fatal error"]
+  end
+  PSL[process_submodule_list]
+  CB[combine_batch_and_finalize_rc]
+  FTL[finalize_translations_local]
+  TW[trigger_weblate]
+  Compose["Inline: submodule_fatal to 1, then finalize, then weblate last wins"]
+  JobExit["Workflow step exit 0 or non-zero"]
+
+  A0 -->|"record_submodule_update"| PSL
+  A1 -->|"continue batch"| PSL
+  A2 -->|"record_submodule_fatal"| PSL
+  PSL --> CB
+  PSL --> FTL
+  CB -->|"add-submodules, sync-mirrors"| JobExit
+  FTL --> TW --> Compose --> JobExit
+```
+
+### 6.1 Per-submodule batch processors
+
+Functions passed to **`process_submodule_list`** in **`submodule_ops.sh`**:
+
+| Code | Meaning | Recorded in | Examples |
+|------|---------|-------------|----------|
+| **0** | Success | **`UPDATES`** | Mirror synced; repo created; local branch ready for Weblate |
+| **1** | Non-fatal skip (batch continues) | Summary buckets (**`NO_DOC_PATHS`**, **`REPO_EXISTS_SKIP`**, **`OPEN_PR_SKIP`**) | No doc paths; mirror repo already exists; open translation PR |
+| **2** | Fatal submodule error | **`SUBMODULE_FATAL`** / **`submodule_fatal`** | Git clone/push/commit failure; missing org mirror; **`libraries.json`** fetch failure; invalid **`START_PHASE`**; **`has_open_translation_pr`** API failure |
+
+Processors that follow this contract:
+
+- **`add_one_submodule`** (**`add_submodules.sh`**) — **`return 1`** when the mirror repo
+  already exists or metadata has no doc paths; **`return 2`** for git/gh/metadata failures.
+- **`sync_one_submodule`** (**`translation.sh`**) — **`return 1`** when metadata has no doc
+  paths or no language was added for the submodule; **`return 2`** for git/clone/sync failures.
+- **`process_local_branch`** (**`translation.sh`**) — **`0`** = eligible for Weblate
+  **`add_or_update`**; **`1`** = skipped due to open translation PR; **`2`** = git/API failure.
+
+### 6.2 Orchestration
+
+**`process_submodule_list`** (**always returns 0**):
+
+- **`rc == 0`**: calls **`record_submodule_update`**.
+- **`rc == 1`**: ignored for exit purposes; batch continues.
+- **`rc == 2`**: calls **`record_submodule_fatal`**; increments **`submodule_fatal`**.
+
+**`combine_batch_and_finalize_rc finalize_rc`**:
+
+1. Start **`exit_rc=0`**.
+2. If **`submodule_fatal > 0`** → **`exit_rc=1`** (fatals are collapsed, not propagated as **`2`**).
+3. If **`finalize_rc != 0`** → **`exit_rc=$finalize_rc`** (**finalize wins** over batch fatal).
+
+### 6.3 Workflow job exit
+
+| Workflow step | Collapse logic |
+|---------------|----------------|
+| **`add-submodules.yml`** | **`add_submodules_main`** → **`combine_batch_and_finalize_rc`** |
+| **`start-translation.yml`** **`sync-mirrors`** | **`combine_batch_and_finalize_rc "$rc"`** after **`finalize_translations_master`** |
+| **`start-translation.yml`** **`start-local`** | Inline duplicate: **`submodule_fatal > 0` → 1**, then **`finalize_translations_local`** rc, then **`trigger_weblate`** rc (last non-zero assignment wins) |
+
+On partial submodule failure, **`sync-mirrors`** still finalizes successful submodule
+pointers in the super-repo, then exits non-zero so downstream jobs can distinguish full
+success from partial failure.
+
+### 6.4 Related conventions (not the batch 0/1/2 contract)
+
+| Helper | Convention |
+|--------|------------|
+| **`has_open_translation_pr`** (**`lib.sh`**) | Separate tri-state: **`0`** = open PR exists, **`1`** = none, **`2`** = GitHub API failure |
+| **`get_doc_paths`** | Returns **`1`** on API failure; callers upgrade to processor **`return 2`** after recording **`META_MISSING`** |
+| Setup-phase helpers (**`resolve_add_submodules_names`**, **`ensure_all_translation_lang_branches`**, **`ensure_translations_cloned`** failures) | Return **non-zero (fail)** and cause **immediate job `exit`** before batch processing; **`resolve_add_submodules_names`** hard-exits **`1`**, while **`ensure_translations_cloned`** / **`ensure_all_translation_lang_branches`** propagate the failing command's exit status (e.g. git **`128`**) via **`rc=$?` capture and `exit $rc`** |
+| **`trigger_weblate`** (**`translation.sh`**) | **`0`** success or empty skip; **`1`** validation or HTTP/curl failure |
+| **`validate_secrets`** / **`parse_and_validate_lang_codes`** | **`exit 1`** (fatal to entire step) |
+| **`sync-translation.yml`** | Does **not** use this convention |
+| **`scripts/trigger-*.sh`** | **`exit 0`** success (including **`--help`**); **`exit 1`** for any client/dispatch error — **does not participate** in the 0/1/2 batch contract |
+
+---
+
+## 7. Cross-cutting concerns
 
 **Authentication.** **`SYNC_TOKEN`** is passed to **`actions/checkout`** and
 **`GITHUB_TOKEN`** for **`gh`** and **`gh auth setup-git`**, so pushes and API calls
@@ -183,7 +272,7 @@ are printed for **`start-translation`** on success or failure paths where implem
 
 ---
 
-## 7. Stability of this document
+## 8. Stability of this document
 
 Update this file when **branch naming**, **Weblate contract**, **ownership model**
 (**`MODULE_ORG`**), or **repository layout** changes. Routine secret rotation or

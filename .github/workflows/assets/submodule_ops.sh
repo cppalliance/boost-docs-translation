@@ -6,6 +6,11 @@
 #   WORK_DIR, BOOST_WORK, TRANS_DIR, ORG_WORK (optional)
 #   submodule_names, submodule_fatal, libs_ref, boost_org
 #   lang_codes_arr, SUBMODULES, LIBS_REF (env)
+#
+# Per-submodule batch return convention (see docs/ARCHITECTURE.md §6):
+#   0 = success, 1 = non-fatal skip, 2 = fatal error.
+# process_submodule_list collapses 2 → submodule_fatal; combine_batch_and_finalize_rc
+# maps submodule_fatal to job exit 1 (finalize_rc wins when non-zero).
 # shellcheck disable=SC2034,SC2154
 
 # Create temp workspace dirs. Pass "with_org_work" to also set ORG_WORK.

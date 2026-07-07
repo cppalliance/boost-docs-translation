@@ -3,6 +3,10 @@
 # Source after env.sh and lib.sh. Requires globals:
 # MODULE_ORG, MASTER_BRANCH, BOOST_ORG, BOOST_WORK, libs_ref, boost_org,
 # lang_codes_arr, REPO_EXISTS_SKIP, META_MISSING, NO_DOC_PATHS, GITHUB_WORKSPACE.
+#
+# Per-submodule batch return convention (see docs/ARCHITECTURE.md §6):
+#   0 = success, 1 = non-fatal skip, 2 = fatal error.
+# process_submodule_list collapses 2 → submodule_fatal; workflows exit 0 or non-zero.
 # shellcheck disable=SC2034,SC2154
 
 create_repo() {

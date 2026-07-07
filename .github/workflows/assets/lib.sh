@@ -5,6 +5,10 @@
 # are set. Workflows also set GITHUB_TOKEN, LANG_CODES, and (for start-translation)
 # WEBLATE_URL / WEBLATE_TOKEN in the step env before sourcing.
 # Call validate_secrets (or validate_secrets weblate) after sourcing env.sh and lib.sh.
+#
+# Per-submodule batch return convention (see docs/ARCHITECTURE.md §6):
+#   0 = success, 1 = non-fatal skip, 2 = fatal error.
+# Exception: has_open_translation_pr uses a separate tri-state (0=PR exists, 1=none, 2=API fail).
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -280,7 +284,8 @@ finalize_translations_repo() {
 #     consumed by trigger_weblate (translation.sh).
 #
 #   SUBMODULE_FATAL (indexed array)
-#     Submodule names that returned fatal (exit 2) from add_one_submodule or sync_one_submodule.
+#     Submodule names that returned fatal (return 2) from add_one_submodule or
+#     sync_one_submodule. See docs/ARCHITECTURE.md §6.
 #
 #   OPEN_PR_SKIP (indexed array)
 #     Submodule names skipped due to an open translation PR (start-translation local).

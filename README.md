@@ -16,6 +16,9 @@ different org.
 
 For system context, branch model, and data flows, see **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
+For a step-by-step operator checklist (secrets → dispatch order → ongoing sync), see
+**[OPERATOR.md](docs/OPERATOR.md)**.
+
 ---
 
 ## Integration contracts
@@ -25,6 +28,8 @@ HTTP surfaces are described in **[`docs/endpoint-contract.md`](docs/endpoint-con
 ---
 
 ## Workflows
+
+Summary checklist: **[OPERATOR.md](docs/OPERATOR.md)**.
 
 ### `add-submodules.yml` — Create library mirrors and register submodules
 
@@ -130,7 +135,9 @@ branch and tag naming details.
 Sourced by **`add-submodules`** and **`start-translation`**: org/repo names, branch prefixes
 (`MASTER_BRANCH`, `LOCAL_BRANCH_PREFIX`, `TRANSLATION_BRANCH_PREFIX`), Weblate path
 (`WEBLATE_ENDPOINT_PATH`), clone and prune helpers, translations-repo branch setup,
-submodule pointer updates, and list parsing.
+submodule pointer updates, and list parsing. Per-submodule return codes (0/1/2) and how
+workflows collapse them to job exit are documented in
+**[ARCHITECTURE.md §6](docs/ARCHITECTURE.md#6-shell-return-codes)**.
 
 ---
 
@@ -141,6 +148,10 @@ From a clone of this repo:
 - **`scripts/trigger-add-submodules.sh`** — fires **`add-submodules`**.
 - **`scripts/trigger-start-translation.sh`** — fires **`start-translation`** (optional
   **`--version`**, **`--lang-codes`**, **`--extensions`**).
+
+These wrappers use only **`exit 0`** (success, including **`--help`**) and **`exit 1`**
+(all errors); they do not implement the asset-script 0/1/2 batch return convention
+(see **[ARCHITECTURE.md §6](docs/ARCHITECTURE.md#6-shell-return-codes)**).
 
 Copy **`.env.example`** to **`.env`** and set **`GH_TOKEN`** (or **`GITHUB_TOKEN`**)
 with permission to call **`POST /repos/{owner}/{repo}/dispatches`** on the target
