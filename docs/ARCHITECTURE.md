@@ -228,7 +228,7 @@ success from partial failure.
 |--------|------------|
 | **`has_open_translation_pr`** (**`lib.sh`**) | Separate tri-state: **`0`** = open PR exists, **`1`** = none, **`2`** = GitHub API failure |
 | **`get_doc_paths`** | Returns **`1`** on API failure; callers upgrade to processor **`return 2`** after recording **`META_MISSING`** |
-| Setup-phase helpers (**`resolve_add_submodules_names`**, **`ensure_all_translation_lang_branches`**, **`ensure_translations_cloned`** failures) | Return **non-zero (fail)** and cause **immediate job `exit`** before batch processing; **`resolve_add_submodules_names`** hard-exits **`1`**, while **`ensure_translations_cloned`** / **`ensure_all_translation_lang_branches`** propagate the underlying command status (e.g. git **`128`**) via **`|| rc=$?` … `exit $rc`** |
+| Setup-phase helpers (**`resolve_add_submodules_names`**, **`ensure_all_translation_lang_branches`**, **`ensure_translations_cloned`** failures) | Return **non-zero (fail)** and cause **immediate job `exit`** before batch processing; **`resolve_add_submodules_names`** hard-exits **`1`**, while **`ensure_translations_cloned`** / **`ensure_all_translation_lang_branches`** propagate the failing command's exit status (e.g. git **`128`**) via **`rc=$?` capture and `exit $rc`** |
 | **`trigger_weblate`** (**`translation.sh`**) | **`0`** success or empty skip; **`1`** validation or HTTP/curl failure |
 | **`validate_secrets`** / **`parse_and_validate_lang_codes`** | **`exit 1`** (fatal to entire step) |
 | **`sync-translation.yml`** | Does **not** use this convention |
