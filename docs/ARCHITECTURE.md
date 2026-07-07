@@ -163,14 +163,18 @@ flowchart TD
   end
   PSL[process_submodule_list]
   CB[combine_batch_and_finalize_rc]
+  FTL[finalize_translations_local]
+  TW[trigger_weblate]
+  Compose["Inline: submodule_fatal to 1, then finalize, then weblate last wins"]
   JobExit["Workflow step exit 0 or non-zero"]
 
   A0 -->|"record_submodule_update"| PSL
   A1 -->|"continue batch"| PSL
   A2 -->|"record_submodule_fatal"| PSL
   PSL --> CB
-  CB -->|"fatal count becomes 1"| JobExit
-  CB -->|"finalize_rc wins if set"| JobExit
+  PSL --> FTL
+  CB -->|"add-submodules, sync-mirrors"| JobExit
+  FTL --> TW --> Compose --> JobExit
 ```
 
 ### 6.1 Per-submodule batch processors
