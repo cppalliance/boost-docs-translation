@@ -40,5 +40,5 @@ are not listed.
 - Test harness and CI: `make check` (ShellCheck, actionlint, bats suite).
 - Operator quick reference: [OPERATOR.md](docs/OPERATOR.md).
 
-[Unreleased]: https://github.com/whisper67265/boost-docs-translation/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/whisper67265/boost-docs-translation/releases/tag/v1.0.0
+[Unreleased]: https://github.com/cppalliance/boost-docs-translation/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/cppalliance/boost-docs-translation/releases/tag/v1.0.0
