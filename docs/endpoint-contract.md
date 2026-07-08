@@ -33,6 +33,42 @@ flowchart LR
 
 ---
 
+## Versioning and stability
+
+Orchestration releases of **this** repository are tagged **`vX.Y.Z`** (semver). Changes
+to the surfaces below require a semver bump and an entry in
+**[CHANGELOG.md](../CHANGELOG.md)**. See **[README § Releases](../README.md#releases)**
+for the maintainer release checklist.
+
+**Pinning:** consumers should pin automation to a git ref matching a **`v*`** tag or a
+commit reachable from one.
+
+### Versioned surface
+
+Semver applies to documented changes in:
+
+| Surface | Reference |
+| ------- | --------- |
+| `repository_dispatch` **`event_type`** values | `add-submodules`, `start-translation`, `sync-translation` |
+| **`client_payload`** field names, optionality, semantics | [README](../README.md) workflow tables; sections below |
+| Dispatch HTTP contract | URL, auth headers, success = HTTP **204** |
+| Outbound Weblate POST | `organization`, `version`, `extensions`, `add_or_update`; success **200** or **202** |
+| Shell batch return codes **0 / 1 / 2** and job collapse | [ARCHITECTURE §6](ARCHITECTURE.md#6-shell-return-codes) — code **2** never propagates to GitHub Actions step exit |
+| Branch/path constants affecting behavior | `MASTER_BRANCH`, `LOCAL_BRANCH_PREFIX`, `TRANSLATION_BRANCH_PREFIX`, `WEBLATE_ENDPOINT_PATH` in [`env.sh`](../.github/workflows/assets/env.sh) |
+
+### Semver rules
+
+| Bump | When |
+| ---- | ---- |
+| **MAJOR** | Remove or rename event types or payload fields; change documented semantics or success criteria; change **0 / 1 / 2** meanings or job-exit collapse rules |
+| **MINOR** | Additive optional fields, new event types, backward-compatible behavior |
+| **PATCH** | Bug fixes, internal refactors, dependency bumps, documentation that does not change the contract |
+
+**Out of scope for orchestration semver:** mirror content tags (`{version}-{repo}-{lang_code}`),
+submodule pointer updates, and Boost release refs in `client_payload.version`.
+
+---
+
 ## Endpoint inventory
 
 | #   | Surface                | Method       | URL / path                                               | Defined or invoked in this repo                                                                                   | Label          |

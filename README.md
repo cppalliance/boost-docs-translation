@@ -25,6 +25,40 @@ For a step-by-step operator checklist (secrets → dispatch order → ongoing sy
 
 HTTP surfaces are described in **[`docs/endpoint-contract.md`](docs/endpoint-contract.md)**.
 
+Notable orchestration contract changes are recorded in **[CHANGELOG.md](CHANGELOG.md)**.
+
+---
+
+## Releases
+
+This repository uses **semver tags** (`vX.Y.Z`) to version its **operator and consumer
+surface** — not translation content in mirror repos.
+
+| Namespace | Where | Format | Example |
+| --------- | ----- | ------ | ------- |
+| **Orchestration release** | This repo | `v{MAJOR}.{MINOR}.{PATCH}` | `v1.0.0` |
+| **Mirror content** | Each `libs/*` mirror | `{boost-version}-{repo}-{lang_code}` | `boost-1.90.0-algorithm-zh_Hans` |
+
+Mirror content tags are created by **`create-tag.yml`** when a Weblate PR merges; they
+are **not** orchestration semver. See
+[`.github/workflows/assets/README.md`](.github/workflows/assets/README.md#tag-namespaces).
+
+**What semver covers:** `repository_dispatch` event types and `client_payload` fields,
+dispatch HTTP contract, Weblate outbound POST shape, shell **0 / 1 / 2** batch return
+codes and job collapse rules, and branch/path constants in **`env.sh`** when they affect
+observable behavior. Details: **[Versioning and stability](docs/endpoint-contract.md#versioning-and-stability)**.
+
+**Pinning:** external automation should pin to a git ref matching a `v*` tag (or a commit
+reachable from one). Check **[CHANGELOG.md](CHANGELOG.md)** before upgrading.
+
+### Maintainer release checklist
+
+1. Move **`[Unreleased]`** entries in **`CHANGELOG.md`** to a new
+   **`## [X.Y.Z] - YYYY-MM-DD`** section and update the footer compare links.
+2. Merge to the default branch.
+3. Tag that commit: `git tag -a vX.Y.Z -m "vX.Y.Z"` then `git push origin vX.Y.Z`.
+4. (Optional) Create a GitHub Release from the tag with the CHANGELOG excerpt.
+
 ---
 
 ## Workflows

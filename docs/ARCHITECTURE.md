@@ -277,3 +277,7 @@ are printed for **`start-translation`** on success or failure paths where implem
 Update this file when **branch naming**, **Weblate contract**, **ownership model**
 (**`MODULE_ORG`**), or **repository layout** changes. Routine secret rotation or
 version bumps in **`actions/checkout`** alone do not require edits here.
+
+Consumer-facing semver for the orchestration contract is tracked in
+**[CHANGELOG.md](../CHANGELOG.md)** and
+**[endpoint-contract.md § Versioning and stability](endpoint-contract.md#versioning-and-stability)**.
