@@ -217,9 +217,10 @@ Install git hooks (runs lint + tests before each commit):
 scripts/install-git-hooks.sh
 ```
 
-Requires **git** and **curl** for first-time setup. ShellCheck, actionlint, and bats are
-downloaded automatically into `.cache/` when not already installed (`apt install bats`
-is optional).
+Requires **git** and **curl** for first-time setup. ShellCheck and actionlint are
+downloaded automatically into `.cache/` when not already installed (pinned versions
+verified in CI on Linux and macOS). Bats is auto-downloaded into `.cache/` by
+`scripts/test.sh` when not on PATH (`apt install bats` is optional on Linux).
 
 Run checks manually:
 
@@ -229,7 +230,13 @@ make test    # bats test suite
 make check   # lint + test (same as pre-commit)
 ```
 
-CI runs **`make test`** and **`scripts/lint.sh`** on every push and pull request.
+On macOS, `make lint` uses the same pinned ShellCheck/actionlint downloads CI
+verifies; `make test` works locally (bats auto-download; install **jq** via Homebrew
+if you run tests that parse JSON).
+
+CI runs **`scripts/lint.sh`** on every push and pull request on **ubuntu-latest**
+and **macos-latest** (exercising pinned ShellCheck/actionlint downloads on both
+platforms). **`make test`** runs on **ubuntu-latest** only.
 
 ## License
 

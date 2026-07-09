@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Run ShellCheck and actionlint (same checks as CI lint job).
-# Versions below are pinned; binaries are always taken from .cache/ so local matches CI.
+# Versions below are pinned; binaries are downloaded to .cache/ with OS-specific
+# checksums verified in CI (Linux and macOS).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
