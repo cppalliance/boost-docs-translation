@@ -40,8 +40,8 @@ flowchart TD
 | 4 | Ongoing | `sync-translation.yml` | `event_type: sync-translation` or daily cron | curl example (no script) |
 | 5 | Automatic | mirror `create-tag.yml` | PR merge in mirror | none |
 
-- **Dispatch order (issue 5):** on a fresh repo, run step 2 before step 3. Detail in [§3](#3-start-translation--sync-mirrors-and-notify-weblate) and [`.github/workflows/assets/translation.sh`](../.github/workflows/assets/translation.sh).
-- **Exit codes (issue 7):** per-submodule **0 / 1 / 2** collapse rules — [ARCHITECTURE §6 — Shell return codes](ARCHITECTURE.md#6-shell-return-codes) only.
+- **Dispatch order:** on a fresh repo, run step 2 before step 3. Detail in [§3](#3-start-translation--sync-mirrors-and-notify-weblate) and [`.github/workflows/assets/translation.sh`](../.github/workflows/assets/translation.sh).
+- **Exit codes:** per-submodule **0 / 1 / 2** collapse rules — [ARCHITECTURE §6 — Shell return codes](ARCHITECTURE.md#6-shell-return-codes) only.
 
 ---
 
