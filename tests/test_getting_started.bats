@@ -59,3 +59,24 @@ setup() {
 @test "OPERATOR.md is not present (renamed to GETTING-STARTED.md)" {
   [ ! -f "$ROOT/docs/OPERATOR.md" ]
 }
+
+@test "GETTING-STARTED.md has operator checklist table" {
+  grep -q 'Operator checklist' "$DOC"
+}
+
+@test "GETTING-STARTED.md names trigger scripts" {
+  grep -q 'scripts/trigger-add-submodules.sh' "$DOC"
+  grep -q 'scripts/trigger-start-translation.sh' "$DOC"
+}
+
+@test "GETTING-STARTED.md names GH_TOKEN" {
+  grep -q 'GH_TOKEN' "$DOC"
+}
+
+@test "GETTING-STARTED.md cross-links ARCHITECTURE shell return codes" {
+  grep -q 'ARCHITECTURE.md#6-shell-return-codes' "$DOC"
+}
+
+@test "GETTING-STARTED.md documents dispatch-order guard" {
+  grep -q 'add-submodules first' "$DOC"
+}

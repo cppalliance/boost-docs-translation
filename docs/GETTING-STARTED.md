@@ -1,7 +1,8 @@
 # Getting started (end to end)
 
-Ordered walkthrough from an empty translations repository to a fully operational
-Boost documentation translation pipeline. For per-workflow field detail see
+Operator quick reference and end-to-end walkthrough from an empty translations
+repository to a fully operational Boost documentation translation pipeline. For
+per-workflow field detail see
 [README.md](../README.md); for design and return codes see
 [ARCHITECTURE.md](ARCHITECTURE.md); for HTTP and dispatch shapes see
 [endpoint-contract.md](endpoint-contract.md). If you pin automation to a semver tag,
@@ -27,6 +28,20 @@ flowchart TD
   verifyStart -.->|"translator merges PR"| tag
   sync -->|"daily cron or manual dispatch"| sync
 ```
+
+## Operator checklist
+
+| Step | When | Workflow | Trigger | Script / client |
+| ---- | ---- | -------- | ------- | ----------------- |
+| 0 | Always first | — | — | GitHub secrets/vars: `SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, `LANG_CODES`, optional `SUBMODULES_ORG` |
+| 1 | Optional | — | — | `cp .env.example .env` → `GH_TOKEN` |
+| 2 | Greenfield / new libs | `add-submodules.yml` | `event_type: add-submodules` | `scripts/trigger-add-submodules.sh` |
+| 3 | After mirrors exist | `start-translation.yml` | `event_type: start-translation` | `scripts/trigger-start-translation.sh` |
+| 4 | Ongoing | `sync-translation.yml` | `event_type: sync-translation` or daily cron | curl example (no script) |
+| 5 | Automatic | mirror `create-tag.yml` | PR merge in mirror | none |
+
+- **Dispatch order (issue 5):** on a fresh repo, run step 2 before step 3. Detail in [§3](#3-start-translation--sync-mirrors-and-notify-weblate) and [`.github/workflows/assets/translation.sh`](../.github/workflows/assets/translation.sh).
+- **Exit codes (issue 7):** per-submodule **0 / 1 / 2** collapse rules — [ARCHITECTURE §6 — Shell return codes](ARCHITECTURE.md#6-shell-return-codes) only.
 
 ---
 
