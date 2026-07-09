@@ -11,6 +11,12 @@ are a separate namespace — see [README](README.md#releases) and
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed and expanded operator quick reference to
+  [GETTING-STARTED.md](docs/GETTING-STARTED.md): end-to-end walkthrough with
+  per-step verification and create-tag coverage.
+
 ## [1.0.0] - 2026-07-07
 
 Initial semver baseline for the orchestration repo. Summarizes the operator and
@@ -38,7 +44,7 @@ are not listed.
 - Mirror asset `create-tag.yml` (copied into library mirrors; produces content tags,
   not orchestration semver).
 - Test harness and CI: `make check` (ShellCheck, actionlint, bats suite).
-- Operator quick reference: [OPERATOR.md](docs/OPERATOR.md).
+- Operator quick reference: [GETTING-STARTED.md](docs/GETTING-STARTED.md) (formerly OPERATOR.md).
 
 [Unreleased]: https://github.com/cppalliance/boost-docs-translation/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/cppalliance/boost-docs-translation/releases/tag/v1.0.0

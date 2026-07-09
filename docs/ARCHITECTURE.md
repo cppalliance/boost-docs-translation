@@ -3,7 +3,7 @@
 This document describes **why** the system is shaped the way it is, **how** the main
 pieces relate, and **which** concerns cut across workflows. For triggers, secrets,
 and copy-paste examples, see [README.md](../README.md). For a zero-to-operational
-runbook, see [OPERATOR.md](OPERATOR.md).
+walkthrough, see [GETTING-STARTED.md](GETTING-STARTED.md).
 
 ---
 
