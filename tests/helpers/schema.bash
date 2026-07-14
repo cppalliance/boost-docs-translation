@@ -31,28 +31,25 @@ extract_json_object_from_log() {
   python3 -c '
 import json, sys
 text = open(sys.argv[1], encoding="utf-8", errors="replace").read()
-# Prefer scanning for brace-balanced objects from the end.
+decoder = json.JSONDecoder()
 candidates = []
-depth = 0
-start = None
-for i, ch in enumerate(text):
-    if ch == "{":
-        if depth == 0:
-            start = i
-        depth += 1
-    elif ch == "}" and depth:
-        depth -= 1
-        if depth == 0 and start is not None:
-            candidates.append(text[start : i + 1])
-            start = None
-for blob in reversed(candidates):
+i = 0
+n = len(text)
+while i < n:
+    start = text.find("{", i)
+    if start < 0:
+        break
     try:
-        obj = json.loads(blob)
+        obj, end = decoder.raw_decode(text, start)
     except json.JSONDecodeError:
+        i = start + 1
         continue
     if isinstance(obj, dict):
-        print(json.dumps(obj))
-        sys.exit(0)
+        candidates.append(obj)
+    i = end
+for obj in reversed(candidates):
+    print(json.dumps(obj))
+    sys.exit(0)
 sys.exit(1)
 ' "$log_file"
 }

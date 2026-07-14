@@ -12,6 +12,13 @@ ensure_check_jsonschema() {
     root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   fi
   version="$CHECK_JSONSCHEMA_VERSION"
+  # Reject path separators / .. so version cannot escape cache_dir via venv_dir.
+  case "$version" in
+    '' | */* | *\\* | *..*)
+      echo "ensure_check_jsonschema: invalid CHECK_JSONSCHEMA_VERSION: ${version}" >&2
+      return 1
+      ;;
+  esac
   cache_dir="$root/.cache/check-jsonschema"
   venv_dir="$cache_dir/${version}"
   bin="$venv_dir/bin/check-jsonschema"
