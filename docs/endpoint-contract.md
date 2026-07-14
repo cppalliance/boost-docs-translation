@@ -52,7 +52,7 @@ Semver applies to documented changes in:
 | `repository_dispatch` **`event_type`** values | `add-submodules`, `start-translation`, `sync-translation` |
 | **`client_payload`** field names, optionality, semantics | [README](../README.md) workflow tables; sections below |
 | Dispatch HTTP contract | URL, auth headers, success = HTTP **204** |
-| Outbound Weblate POST | `organization`, `version`, `extensions`, `add_or_update`; success **200** or **202** |
+| Outbound Weblate POST | Request schema [weblate-add-or-update.request.schema.json](schemas/weblate-add-or-update.request.schema.json); success **200** or **202** |
 | Shell batch return codes **0 / 1 / 2** and job collapse | [ARCHITECTURE §6](ARCHITECTURE.md#6-shell-return-codes) — code **2** never propagates to GitHub Actions step exit |
 | Branch/path constants affecting behavior | `MASTER_BRANCH`, `LOCAL_BRANCH_PREFIX`, `TRANSLATION_BRANCH_PREFIX`, `WEBLATE_ENDPOINT_PATH` in [`env.sh`](../.github/workflows/assets/env.sh) |
 
@@ -134,3 +134,29 @@ submodule pointer updates, and Boost release refs in `client_payload.version`.
 | Auth       | `Authorization: Token {WEBLATE_TOKEN}`                                                         |
 | Invoked by | `.github/workflows/start-translation.yml` (`start-local` job)                                |
 | Success    | HTTP **200** or **202** (async accepted)                                                       |
+
+### Payload
+
+Field names, types, and constraints are defined by
+**[weblate-add-or-update.request.schema.json](schemas/weblate-add-or-update.request.schema.json)**
+(source of truth). Summary:
+
+| Field | Shape |
+| ----- | ----- |
+| `organization` | Non-empty string (`MODULE_ORG`) |
+| `version` | Non-empty string (Boost libs ref) |
+| `extensions` | Array of dot-prefixed strings (may be `[]`) |
+| `add_or_update` | Object: language code → non-empty array of submodule basenames |
+
+Built by `trigger_weblate` in `.github/workflows/assets/translation.sh`. The call is
+omitted when `add_or_update` would be empty.
+
+### Success response bodies
+
+| HTTP status | Body |
+| ----------- | ---- |
+| **202** | JSON object with required string `task_id` (async acceptance) |
+| **200** | JSON object with required string `status` equal to `"ok"` (sync completion) |
+
+Orchestration treats both statuses as success and prints the response body to logs;
+it does not otherwise act on response fields.

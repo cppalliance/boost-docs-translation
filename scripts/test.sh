@@ -35,4 +35,9 @@ ensure_bats() {
 }
 
 ensure_bats
+
+# shellcheck source=scripts/ensure_check_jsonschema.sh
+source "$ROOT/scripts/ensure_check_jsonschema.sh"
+ensure_check_jsonschema
+
 "$BATS_BIN" tests/

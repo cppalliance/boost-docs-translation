@@ -1,0 +1,8 @@
+{
+  "organization": "testorg",
+  "version": "develop",
+  "extensions": [".adoc"],
+  "add_or_update": {
+    "en": ["algorithm", "system"]
+  }
+}
