@@ -177,3 +177,19 @@ echo "lint: actionlint ${ACTIONLINT_VERSION} ($("$ACTIONLINT_BIN" -version | hea
   tests/helpers/*.bash
 
 "$ACTIONLINT_BIN" -color
+
+# shellcheck source=scripts/ensure_check_jsonschema.sh
+source "$ROOT/scripts/ensure_check_jsonschema.sh"
+ensure_check_jsonschema
+
+echo "lint: check-jsonschema ${CHECK_JSONSCHEMA_VERSION}" >&2
+shopt -s nullglob
+schema_files=(docs/schemas/*.schema.json)
+if [[ ${#schema_files[@]} -eq 0 ]]; then
+  echo "lint: no JSON Schema files under docs/schemas/" >&2
+  exit 1
+fi
+"$CHECK_JSONSCHEMA_BIN" --check-metaschema "${schema_files[@]}"
+"$CHECK_JSONSCHEMA_BIN" --schemafile \
+  docs/schemas/weblate-add-or-update.request.schema.json \
+  tests/helpers/fixtures/weblate-add-or-update-request-valid.json

@@ -18,7 +18,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: ShellCheck and actionlint
+      - name: Install Python for schema validation
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-venv python3-pip
+
+      - name: ShellCheck, actionlint, and JSON Schema
         run: scripts/lint.sh
 
   test:
@@ -31,7 +35,7 @@ jobs:
           persist-credentials: false
 
       - name: Install test dependencies
-        run: sudo apt-get update && sudo apt-get install -y bats jq curl
+        run: sudo apt-get update && sudo apt-get install -y bats jq curl python3-pip python3-venv
 
       - name: Run tests
         run: make test

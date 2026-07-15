@@ -11,11 +11,25 @@ are a separate namespace — see [README](README.md#releases) and
 
 ## [Unreleased]
 
+### Added
+
+- JSON Schema for the outbound Weblate add-or-update POST request:
+  [weblate-add-or-update.request.schema.json](docs/schemas/weblate-add-or-update.request.schema.json)
+  (`organization`, `version`, `extensions`, `add_or_update`).
+- Documented Weblate success response bodies in
+  [endpoint-contract.md](docs/endpoint-contract.md): HTTP **202** (`task_id`),
+  HTTP **200** (`status: "ok"`).
+- Lint/CI schema checks via pinned `check-jsonschema` (metaschema + fixture
+  validation); bats validates captured Weblate request bodies against the schema
+  and asserts success response fields.
+
 ### Changed
 
 - Renamed and expanded operator quick reference to
   [GETTING-STARTED.md](docs/GETTING-STARTED.md): end-to-end walkthrough with
   per-step verification and create-tag coverage.
+- [endpoint-contract.md](docs/endpoint-contract.md) Outbound Weblate section:
+  request schema is now the source of truth for payload fields.
 
 ## [1.0.0] - 2026-07-07
 

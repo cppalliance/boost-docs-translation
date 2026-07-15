@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/cppalliance/boost-docs-translation/docs/schemas/weblate-add-or-update.request.schema.json",
+  "title": "Weblate add-or-update request",
+  "description": "Outbound POST body built by trigger_weblate for WEBLATE_ENDPOINT_PATH.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["organization", "version", "extensions", "add_or_update"],
+  "properties": {
+    "organization": {
+      "type": "string",
+      "minLength": 1,
+      "description": "GitHub org hosting library mirror repos (MODULE_ORG)."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Boost libs ref (e.g. develop or boost-1.90.0)."
+    },
+    "extensions": {
+      "type": "array",
+      "description": "Dot-prefixed file extensions filter for Weblate; empty means no filter.",
+      "items": {
+        "type": "string",
+        "pattern": "^\\..+"
+      }
+    },
+    "add_or_update": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Map of language code to non-empty arrays of submodule basenames.",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[A-Za-z]{2,3}([_-][A-Za-z0-9]{2,8})*$"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]*$"
+        }
+      }
+    }
+  }
+}

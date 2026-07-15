@@ -10,5 +10,7 @@ source "$_HELPER_DIR/common.bash"
 source "$_HELPER_DIR/git_fixtures.bash"
 # shellcheck source=tests/helpers/http_mock.bash
 source "$_HELPER_DIR/http_mock.bash"
+# shellcheck source=tests/helpers/schema.bash
+source "$_HELPER_DIR/schema.bash"
 
 unset _HELPER_DIR
