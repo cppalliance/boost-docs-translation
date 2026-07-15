@@ -36,6 +36,8 @@ teardown() {
   body_json=$(extract_weblate_request_body_from_log "$MOCK_WEBLATE_REQUEST_LOG")
   validate_json_against_schema "$body_json" \
     "$SCHEMAS_DIR/weblate-add-or-update.request.schema.json"
+  [ "$(echo "$body_json" | jq -r '.organization')" = "$MODULE_ORG" ]
+  [ "$(echo "$body_json" | jq -r '.version')" = "$libs_ref" ]
   response_json=$(extract_json_object_from_log "$BATS_TMPDIR/weblate-202.stderr")
   echo "$response_json" | jq -e '.task_id == "abc123"' >/dev/null
   grep -q "boost-endpoint/add-or-update" "$MOCK_WEBLATE_REQUEST_LOG"

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/boostorg/boost-docs-translation/docs/schemas/weblate-add-or-update.request.schema.json",
+  "$id": "https://github.com/cppalliance/boost-docs-translation/docs/schemas/weblate-add-or-update.request.schema.json",
   "title": "Weblate add-or-update request",
   "description": "Outbound POST body built by trigger_weblate for WEBLATE_ENDPOINT_PATH.",
   "type": "object",
