@@ -32,11 +32,16 @@ resolve_trigger_repo() {
     echo "$GITHUB_REPOSITORY"
     return 0
   fi
+  local inferred
+  inferred="$(infer_repo_from_git)" && {
+    echo "$inferred"
+    return 0
+  }
   if [[ -n "${DEFAULT_REPO:-}" ]]; then
     echo "$DEFAULT_REPO"
     return 0
   fi
-  infer_repo_from_git
+  return 1
 }
 
 resolve_trigger_token() {

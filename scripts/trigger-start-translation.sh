@@ -14,7 +14,7 @@
 #   scripts/trigger-start-translation.sh [--repo OWNER/NAME] [--token PAT] \
 #     [--version REF] [--lang-codes zh_Hans,ja] [--extensions '.adoc, .qbk']
 #
-# If --repo is omitted: GITHUB_REPOSITORY, then DEFAULT_REPO below, then git origin.
+# If --repo is omitted: GITHUB_REPOSITORY, then git origin, then DEFAULT_REPO below.
 #
 # The workflow still needs repo secrets SYNC_TOKEN, WEBLATE_URL, WEBLATE_TOKEN (and
 # vars.LANG_CODES or lang_codes in the payload).
@@ -57,7 +57,7 @@ Requires: curl; jq or Python 3 (python3 / python)
 Auth: .env (GH_TOKEN), GH_TOKEN / GITHUB_TOKEN in env, or --token (needs repo scope on the target).
 
 Options:
-  --repo OWNER/REPO     Target repository (default: GITHUB_REPOSITORY, then DEFAULT_REPO, then origin)
+  --repo OWNER/REPO     Target repository (default: GITHUB_REPOSITORY, then origin, then DEFAULT_REPO)
   --token PAT           GitHub token
   --version REF       Boost ref; default DEFAULT_VERSION in script (clear default to omit → develop)
   --lang-codes CSV    optional; omit → workflow uses repo vars.LANG_CODES

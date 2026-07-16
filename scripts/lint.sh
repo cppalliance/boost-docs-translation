@@ -26,29 +26,40 @@ ensure_cached_binary() {
     return 0
   fi
 
-  local os
+  local os inner_path="$extract_dir/$inner_bin"
   os="$(uname -s)"
   if [[ ! -f "$cache_dir/$tarball" ]]; then
     echo "lint: downloading ${name} ${version}..." >&2
     curl -fsSL -o "$cache_dir/$tarball" "$url"
   fi
-  if [[ ! -d "$extract_dir" ]]; then
+  if [[ ! -f "$inner_path" ]]; then
     if [[ "$os" == "Linux" ]]; then
       echo "${expected_sha256}  $cache_dir/$tarball" | sha256sum -c -
     else
       echo "${expected_sha256}  $cache_dir/$tarball" | shasum -a 256 -c -
     fi
+    rm -rf "$extract_dir"
     if [[ "$format" == xz ]]; then
       if ! tar -xJf "$cache_dir/$tarball" -C "$cache_dir"; then
+        rm -rf "$extract_dir"
         echo "lint: failed to extract ${name} (is xz installed? apt install xz-utils)." >&2
         exit 1
       fi
     else
       mkdir -p "$extract_dir"
-      tar -xzf "$cache_dir/$tarball" -C "$extract_dir"
+      if ! tar -xzf "$cache_dir/$tarball" -C "$extract_dir"; then
+        rm -rf "$extract_dir"
+        echo "lint: failed to extract ${name}." >&2
+        exit 1
+      fi
+    fi
+    if [[ ! -f "$inner_path" ]]; then
+      rm -rf "$extract_dir"
+      echo "lint: expected binary missing after extracting ${name}: $inner_path" >&2
+      exit 1
     fi
   fi
-  cp "$extract_dir/$inner_bin" "$bin"
+  cp "$inner_path" "$bin"
   chmod +x "$bin"
   printf -v "$dest_var" '%s' "$bin"
 }

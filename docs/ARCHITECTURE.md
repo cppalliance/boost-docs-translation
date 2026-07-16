@@ -172,8 +172,9 @@ flowchart TD
   A2 -->|"record_submodule_fatal"| PSL
   PSL --> CB
   PSL --> FTL
-  FTL --> TW
-  TW --> CB
+  FTL -->|"finalize_rc"| CB
+  FTL -->|"rc == 0"| TW
+  TW -->|"weblate_rc"| CB
   CB --> JobExit
 ```
 
