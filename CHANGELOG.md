@@ -25,6 +25,12 @@ are a separate namespace — see [README](README.md#releases) and
 
 ### Changed
 
+- Extracted shared dispatch helpers into
+  [`scripts/trigger-dispatch-common.sh`](scripts/trigger-dispatch-common.sh)
+  (`DEFAULT_REPO`, `DEFAULT_VERSION`, JSON build, `POST …/dispatches`); both
+  `trigger-*.sh` wrappers source it.
+- Mirror **`create-tag.yml`** bot identity now uses **`set_git_bot_config`** from
+  **`env.sh`** / **`lib.sh`** instead of a hardcoded org email.
 - Renamed and expanded operator quick reference to
   [GETTING-STARTED.md](docs/GETTING-STARTED.md): end-to-end walkthrough with
   per-step verification and create-tag coverage.

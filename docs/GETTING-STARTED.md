@@ -118,11 +118,11 @@ scripts/trigger-add-submodules.sh \
 
 - Omit **`--lang-codes`** to use repository variable **`LANG_CODES`**.
 - Omit **`--submodules`** to use the script default **`DEFAULT_SUBMODULES`**
-  (`unordered, json` at
-  [trigger-add-submodules.sh:40](../scripts/trigger-add-submodules.sh)) — **not**
+  (`unordered, json`; see
+  [trigger-add-submodules.sh](../scripts/trigger-add-submodules.sh#L40)) — **not**
   auto-discovery from **`boostorg/boost`**. The script substitutes that default
   before building the payload
-  ([line 160](../scripts/trigger-add-submodules.sh)), so `client_payload.submodules`
+  ([`SUBMODULES` assignment](../scripts/trigger-add-submodules.sh#L99)), so `client_payload.submodules`
   is never omitted. Full discovery runs only when the workflow receives a dispatch
   **without** a `submodules` field (raw API / GitHub UI).
 

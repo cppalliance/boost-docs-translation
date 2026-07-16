@@ -13,9 +13,11 @@ PR is merged into a `local-{lang_code}` branch.
 **Condition:** PR must be merged (`github.event.pull_request.merged == true`) and the head
 branch must start with `translation-` (Weblate-created branches).
 
-**Bot identity:** The “Create and push tag” step sets
-`user.email` to `Boost-Translation-CI-Bot@cppalliance.local`, matching the
-orchestration bot pattern in [`env.sh`](env.sh) for the mirror’s GitHub org.
+**Bot identity:** The “Create and push tag” step sources [`env.sh`](env.sh) and
+[`lib.sh`](lib.sh), then calls **`set_git_bot_config "$GITHUB_WORKSPACE"`** so
+`user.name` / `user.email` match the orchestration bot pattern:
+**`BOT_EMAIL="Boost-Translation-CI-Bot@$ORG.local"`** (with **`ORG`** derived from
+**`GITHUB_REPOSITORY`** in the mirror repo).
 
 **How it works:**
 

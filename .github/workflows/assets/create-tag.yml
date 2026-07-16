@@ -61,7 +61,10 @@ jobs:
             echo "Tag $TAGNAME already exists, skipping."
             exit 0
           fi
-          git config user.name "Boost-Translation-CI-Bot"
-          git config user.email "Boost-Translation-CI-Bot@cppalliance.local"
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          set_git_bot_config "$GITHUB_WORKSPACE"
           git tag "$TAGNAME"
           git push origin "$TAGNAME"

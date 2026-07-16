@@ -78,5 +78,5 @@ init_process_globals() {
 
 init_add_submodule_globals() {
   init_process_globals
-  init_add_submodule_summary_buckets
+  init_submodule_summary_buckets
 }

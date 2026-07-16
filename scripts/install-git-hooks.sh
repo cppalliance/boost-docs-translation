@@ -9,4 +9,4 @@ chmod +x .githooks/pre-commit scripts/lint.sh scripts/test.sh scripts/pre-commit
 
 git config core.hooksPath .githooks
 echo "Installed git hooks from .githooks/ (core.hooksPath=.githooks)." >&2
-echo "Pre-commit runs: scripts/pre-commit.sh (lint + make test)." >&2
+echo "Pre-commit runs: scripts/pre-commit.sh (lint + test)." >&2

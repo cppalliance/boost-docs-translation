@@ -182,6 +182,8 @@ From a clone of this repo:
 - **`scripts/trigger-add-submodules.sh`** — fires **`add-submodules`**.
 - **`scripts/trigger-start-translation.sh`** — fires **`start-translation`** (optional
   **`--version`**, **`--lang-codes`**, **`--extensions`**).
+- **`scripts/trigger-dispatch-common.sh`** — shared by both triggers: **`DEFAULT_REPO`**,
+  **`DEFAULT_VERSION`**, JSON payload build, and **`POST …/dispatches`**.
 
 These wrappers use only **`exit 0`** (success, including **`--help`**) and **`exit 1`**
 (all errors); they do not implement the asset-script 0/1/2 batch return convention
@@ -207,7 +209,7 @@ documented below.
 | Variable         | Used by                               | Description                                                                                                                                                                                                                       |
 | ---------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `LANG_CODES`     | `add-submodules`, `start-translation` | Default language codes when **`client_payload.lang_codes`** is omitted (comma- or bracket-list, e.g. `zh_Hans,ja`). Must be set here or passed in the dispatch payload.                                                           |
-| `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for **`boostorg`** mirror repos (e.g. `CppDigest`). If unset, the org is the same as this repository’s owner. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
+| `SUBMODULES_ORG` | `add-submodules`, `start-translation` | Optional. GitHub org for per-library mirror repos under **`MODULE_ORG`** (e.g. `CppDigest`). If unset, **`MODULE_ORG`** defaults to this repository’s owner. Upstream Boost libraries are cloned from **`boostorg`**. **`sync-translation`** relies on **`.gitmodules`** URLs already pointing at the correct hosts. |
 
 ## Development
 

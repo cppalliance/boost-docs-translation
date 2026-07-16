@@ -351,16 +351,10 @@ record_submodule_fatal() {
 }
 
 # Summary bucket globals; filled by sync_one_submodule before print_submodule_processing_summary.
-# add-submodules uses init_add_submodule_summary_buckets for REPO_EXISTS_SKIP.
 init_submodule_summary_buckets() {
   META_MISSING=()
   NO_DOC_PATHS=()
   ORG_REPO_MISSING=()
-}
-
-init_add_submodule_summary_buckets() {
-  META_MISSING=()
-  NO_DOC_PATHS=()
   REPO_EXISTS_SKIP=()
 }
 

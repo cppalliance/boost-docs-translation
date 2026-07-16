@@ -33,6 +33,8 @@ _ASSETS_DIR="$_REPO_ROOT/.github/workflows/assets"
 source "$_ASSETS_DIR/env.sh"
 # shellcheck source=/dev/null
 source "$_ASSETS_DIR/lib.sh"
+# shellcheck source=/dev/null
+source "$_REPO_ROOT/scripts/trigger-dispatch-common.sh"
 unset _REPO_ROOT _ASSETS_DIR
 
 # ---------------------------------------------------------------------------
@@ -41,8 +43,6 @@ unset _REPO_ROOT _ASSETS_DIR
 # Set DEFAULT_VERSION="" to omit version from payload → workflow uses develop.
 # Extensions default to .adoc and .qbk; set DEFAULT_EXTENSIONS="" to omit from payload.
 # ---------------------------------------------------------------------------
-DEFAULT_REPO="cppalliance/boost-docs-translation"
-DEFAULT_VERSION="boost-1.90.0"
 DEFAULT_EXTENSIONS=".adoc, .qbk"
 
 usage() {
@@ -92,108 +92,24 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v curl >/dev/null 2>&1; then
-  echo "error: curl is required" >&2
+require_curl || exit 1
+
+TOKEN="$(resolve_trigger_token "$TOKEN")" || exit 1
+
+REPO="$(resolve_trigger_repo "$REPO")" || {
+  echo "error: could not determine repo; set DEFAULT_REPO, GITHUB_REPOSITORY, or --repo OWNER/REPO" >&2
   exit 1
-fi
-
-# Emit repository_dispatch JSON on stdout (jq preferred, else Python).
-dispatch_json() {
-  local version="$1" lang_codes="$2" extensions="$3"
-  if command -v jq >/dev/null 2>&1; then
-    jq -n \
-      --arg event_type "$EVENT_START_TRANSLATION" \
-      --arg version "$version" \
-      --arg lang_codes "$lang_codes" \
-      --arg extensions "$extensions" \
-      '{
-        event_type: $event_type,
-        client_payload: (
-          {}
-          | if ($version | length) > 0 then . + {version: $version} else . end
-          | if ($lang_codes | length) > 0 then . + {lang_codes: $lang_codes} else . end
-          | if ($extensions | length) > 0 then . + {extensions: $extensions} else . end
-        )
-      }'
-    return 0
-  fi
-  local py=""
-  command -v python3 >/dev/null 2>&1 && py="python3"
-  [[ -z "$py" ]] && command -v python >/dev/null 2>&1 && py="python"
-  if [[ -n "$py" ]]; then
-    "$py" -c "import json,sys; et,v,lc,ex=sys.argv[1:5]; d={k:x for k,x in (('version',v),('lang_codes',lc),('extensions',ex)) if x}; print(json.dumps({'event_type':et,'client_payload':d}))" \
-      "$EVENT_START_TRANSLATION" "$version" "$lang_codes" "$extensions"
-    return 0
-  fi
-  return 1
 }
-
-TOKEN="${TOKEN:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
-if [[ -z "$TOKEN" ]]; then
-  echo "error: set GH_TOKEN (e.g. in repo-root .env), GITHUB_TOKEN, or pass --token" >&2
-  exit 1
-fi
-
-infer_repo_from_git() {
-  local url root o r
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-  url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 1
-  if [[ "$url" =~ github\.com[:/]([^/]+)/([^[:space:]]+) ]]; then
-    o="${BASH_REMATCH[1]}"
-    r="${BASH_REMATCH[2]}"
-    r="${r%.git}"
-    r="${r%/}"
-    echo "${o}/${r}"
-    return 0
-  fi
-  return 1
-}
-
-if [[ -z "$REPO" ]]; then
-  REPO="${GITHUB_REPOSITORY:-}"
-fi
-if [[ -z "$REPO" ]]; then
-  REPO="${DEFAULT_REPO:-}"
-fi
-if [[ -z "$REPO" ]]; then
-  REPO="$(infer_repo_from_git)" || {
-    echo "error: could not determine repo; set DEFAULT_REPO, GITHUB_REPOSITORY, or --repo OWNER/REPO" >&2
-    exit 1
-  }
-fi
 
 VERSION="${VERSION:-$DEFAULT_VERSION}"
 EXTENSIONS="${EXTENSIONS:-$DEFAULT_EXTENSIONS}"
 
 validate_event_type "$EVENT_START_TRANSLATION"
 
-body="$(dispatch_json "$VERSION" "$LANG_CODES" "$EXTENSIONS")" || {
+body="$(build_dispatch_json "$EVENT_START_TRANSLATION" \
+  version "$VERSION" lang_codes "$LANG_CODES" extensions "$EXTENSIONS")" || {
   echo "error: install jq, or Python 3 (python3 or python on PATH), to build the request JSON" >&2
   exit 1
 }
 
-resp="$(mktemp)"
-trap 'rm -f "$resp"' EXIT
-
-url="https://api.github.com/repos/${REPO}/dispatches"
-code="$(
-  curl -sS -o "$resp" -w '%{http_code}' \
-    -X POST \
-    -H "Authorization: Bearer ${TOKEN}" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    -H "Content-Type: application/json" \
-    -d "$body" \
-    "$url"
-)"
-
-if [[ "$code" == "204" ]]; then
-  echo "Dispatched start-translation to ${REPO} (HTTP ${code})."
-  exit 0
-fi
-
-echo "GitHub API error: HTTP ${code}" >&2
-if [[ -s "$resp" ]]; then
-  cat "$resp" >&2
-fi
-exit 1
+post_repository_dispatch "$REPO" "$TOKEN" "$body" "start-translation"

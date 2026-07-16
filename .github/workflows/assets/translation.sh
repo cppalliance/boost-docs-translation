@@ -219,10 +219,6 @@ trigger_weblate() {
   add_or_update_json=$(jq -n --arg lc "$lang_code" --argjson s "$subs_json" \
     '{($lc): $s}')
 
-  [[ "$add_or_update_json" == "{}" ]] && {
-    echo "Weblate skipped: no translations to update." >&2; return
-  }
-
   local payload
   payload=$(jq -n \
     --arg org "$MODULE_ORG" --arg ver "$libs_ref" \

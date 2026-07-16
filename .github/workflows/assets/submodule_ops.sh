@@ -12,7 +12,7 @@
 # process_submodule_list collapses 2 → submodule_fatal; combine_batch_and_finalize_rc
 # maps submodule_fatal to job exit 1 (finalize_rc wins when non-zero; optional weblate_rc
 # overrides both when non-zero).
-# shellcheck disable=SC2034,SC2154
+# shellcheck disable=SC2034,SC2154,SC2153
 
 # Create temp workspace dirs. Pass "with_org_work" to also set ORG_WORK.
 init_translation_work_dirs() {
@@ -47,11 +47,11 @@ libs_submodule_names_from_gitmodules_file() {
     | sed 's|^libs/||'
 }
 
-# Fetch boostorg/boost .gitmodules at ref; print raw content. Return 1 on failure.
+# Fetch ${BOOST_ORG}/boost .gitmodules at ref; print raw content. Return 1 on failure.
 fetch_boost_gitmodules_at_ref() {
   local ref="$1"
   gh api \
-    "repos/boostorg/boost/contents/.gitmodules?ref=$ref" \
+    "repos/${BOOST_ORG}/boost/contents/.gitmodules?ref=$ref" \
     -H "Accept: application/vnd.github.v3.raw" 2>/dev/null
 }
 
@@ -65,7 +65,7 @@ resolve_add_submodules_names() {
     echo "Using ${#submodule_names[@]} submodules from input." >&2
     return 0
   fi
-  echo "Fetching .gitmodules from boostorg/boost at ${libs_ref_for_fetch}..." >&2
+  echo "Fetching .gitmodules from ${BOOST_ORG}/boost at ${libs_ref_for_fetch}..." >&2
   local gitmodules_content
   gitmodules_content=$(fetch_boost_gitmodules_at_ref "$libs_ref_for_fetch") || {
     phase_err "Failed to fetch .gitmodules"
@@ -132,7 +132,7 @@ add_submodules_main() {
   local rc finalize_rc exit_rc
 
   init_translation_state
-  init_add_submodule_summary_buckets
+  init_submodule_summary_buckets
 
   begin_phase "$PHASE_SETUP" "Validate inputs and prepare workspace"
   validate_secrets
