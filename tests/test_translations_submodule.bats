@@ -100,28 +100,44 @@ install_translations_submodule_fixtures() {
   [ "$status" -ne 0 ]
 }
 
-@test "sync_translations_branch: failed update_translations_submodule yields non-zero" {
+@test "sync_translations_branch: failed update_translations_submodule yields 2" {
   install_translations_submodule_fixtures
-  rm -rf "$GIT_FIXTURE_ROOT/remotes/${MODULE_ORG}/algorithm.git"
 
-  UPDATES=("algorithm")
+  UPDATES=("algorithm" "system")
+  UPDATE_CALLS=()
+  update_translations_submodule() {
+    UPDATE_CALLS+=("$3")
+    [[ "$3" == "algorithm" ]] && return 1
+    return 0
+  }
+
   set +e
   sync_translations_branch "$trans_dir" "$MASTER_BRANCH" "$libs_ref" false
   status=$?
   set -e
 
-  [ "$status" -ne 0 ]
+  [ "$status" -eq 2 ]
+  [ "${#UPDATE_CALLS[@]}" -eq 1 ]
+  [ "${UPDATE_CALLS[0]}" = "algorithm" ]
 }
 
-@test "finalize_translations_master: failed update_translations_submodule yields non-zero" {
+@test "finalize_translations_master: failed update_translations_submodule yields 2" {
   install_translations_submodule_fixtures
-  rm -rf "$GIT_FIXTURE_ROOT/remotes/${MODULE_ORG}/algorithm.git"
 
-  UPDATES=("algorithm")
+  UPDATES=("algorithm" "system")
+  UPDATE_CALLS=()
+  update_translations_submodule() {
+    UPDATE_CALLS+=("$3")
+    [[ "$3" == "algorithm" ]] && return 1
+    return 0
+  }
+
   set +e
   finalize_translations_master "$trans_dir" "$libs_ref"
   status=$?
   set -e
 
-  [ "$status" -ne 0 ]
+  [ "$status" -eq 2 ]
+  [ "${#UPDATE_CALLS[@]}" -eq 1 ]
+  [ "${UPDATE_CALLS[0]}" = "algorithm" ]
 }

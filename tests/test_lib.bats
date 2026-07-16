@@ -197,7 +197,7 @@ teardown() {
   cleanup_git_fixture_root
 }
 
-@test "clone_repo: failed git clone yields non-zero" {
+@test "clone_repo: failed git clone yields status 2" {
   # shellcheck source=tests/helpers/git_fixtures.bash
   source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
   init_git_fixture_root
@@ -208,7 +208,7 @@ teardown() {
   status=$?
   set -e
 
-  [ "$status" -ne 0 ]
+  [ "$status" -eq 2 ]
 }
 
 @test "finalize_translations_master: no-op when UPDATES empty" {

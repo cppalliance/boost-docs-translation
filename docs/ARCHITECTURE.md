@@ -217,7 +217,7 @@ Processors that follow this contract:
 |---------------|----------------|
 | **`add-submodules.yml`** | **`add_submodules_main`** → **`combine_batch_and_finalize_rc`** |
 | **`start-translation.yml`** **`sync-mirrors`** | **`combine_batch_and_finalize_rc "$rc"`** after **`finalize_translations_master`** |
-| **`start-translation.yml`** **`start-local`** | **`combine_batch_and_finalize_rc "$finalize_rc" "$weblate_rc"`** after **`finalize_translations_local`** and **`trigger_weblate`** (Weblate runs only when finalize succeeded; collapse still considers all three sources) |
+| **`start-translation.yml`** **`start-local`** | **`combine_batch_and_finalize_rc "$rc" "$weblate_rc"`** after **`finalize_translations_local`** and **`trigger_weblate`** (Weblate runs only when finalize succeeded; collapse still considers all three sources) |
 
 On partial submodule failure, **`sync-mirrors`** still finalizes successful submodule
 pointers in the super-repo, then exits non-zero so downstream jobs can distinguish full

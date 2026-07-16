@@ -155,6 +155,12 @@ EOF
   [ "$status" -eq 3 ]
 }
 
+@test "combine_batch_and_finalize_rc: fatal plus finalize_rc 2 yields 2" {
+  submodule_fatal=2
+  run combine_batch_and_finalize_rc 2 0
+  [ "$status" -eq 2 ]
+}
+
 @test "init_translation_work_dirs: creates BOOST_WORK and optional ORG_WORK" {
   run bash -c '
     set -euo pipefail
