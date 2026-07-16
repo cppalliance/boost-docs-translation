@@ -10,19 +10,62 @@ cd "$ROOT"
 SHELLCHECK_VERSION="v0.11.0"
 ACTIONLINT_VERSION="1.7.7"
 
-ensure_shellcheck() {
-  local version="$SHELLCHECK_VERSION"
-  local cache_dir="$ROOT/.cache/shellcheck"
-  local extract_dir="$cache_dir/shellcheck-${version}"
-  local bin="$cache_dir/shellcheck-bin-${version}"
+# Download, verify, extract, and cache a release binary under .cache/.
+# Args: name version dest_var tarball expected_sha256 url inner_bin [format]
+# format: xz (default) or gz
+ensure_cached_binary() {
+  local name="$1" version="$2" dest_var="$3" tarball="$4" expected_sha256="$5" url="$6" inner_bin="$7"
+  local format="${8:-xz}"
+  local cache_dir="$ROOT/.cache/$name"
+  local extract_dir="$cache_dir/${name}-${version}"
+  local bin="$cache_dir/${name}-bin-${version}"
   mkdir -p "$cache_dir"
 
   if [[ -x "$bin" ]]; then
-    SHELLCHECK_BIN="$bin"
-    return
+    printf -v "$dest_var" '%s' "$bin"
+    return 0
   fi
 
-  local os arch tarball url expected_sha256
+  local os inner_path="$extract_dir/$inner_bin"
+  os="$(uname -s)"
+  if [[ ! -f "$cache_dir/$tarball" ]]; then
+    echo "lint: downloading ${name} ${version}..." >&2
+    curl -fsSL -o "$cache_dir/$tarball" "$url"
+  fi
+  if [[ ! -f "$inner_path" ]]; then
+    if [[ "$os" == "Linux" ]]; then
+      echo "${expected_sha256}  $cache_dir/$tarball" | sha256sum -c -
+    else
+      echo "${expected_sha256}  $cache_dir/$tarball" | shasum -a 256 -c -
+    fi
+    rm -rf "$extract_dir"
+    if [[ "$format" == xz ]]; then
+      if ! tar -xJf "$cache_dir/$tarball" -C "$cache_dir"; then
+        rm -rf "$extract_dir"
+        echo "lint: failed to extract ${name} (is xz installed? apt install xz-utils)." >&2
+        exit 1
+      fi
+    else
+      mkdir -p "$extract_dir"
+      if ! tar -xzf "$cache_dir/$tarball" -C "$extract_dir"; then
+        rm -rf "$extract_dir"
+        echo "lint: failed to extract ${name}." >&2
+        exit 1
+      fi
+    fi
+    if [[ ! -f "$inner_path" ]]; then
+      rm -rf "$extract_dir"
+      echo "lint: expected binary missing after extracting ${name}: $inner_path" >&2
+      exit 1
+    fi
+  fi
+  cp "$inner_path" "$bin"
+  chmod +x "$bin"
+  printf -v "$dest_var" '%s' "$bin"
+}
+
+ensure_shellcheck() {
+  local version="$SHELLCHECK_VERSION" os arch tarball expected_sha256 url
   os="$(uname -s)"
   arch="$(uname -m)"
   case "$os" in
@@ -63,41 +106,12 @@ ensure_shellcheck() {
       exit 1
       ;;
   esac
-
   url="https://github.com/koalaman/shellcheck/releases/download/${version}/${tarball}"
-  if [[ ! -f "$cache_dir/$tarball" ]]; then
-    echo "lint: downloading shellcheck ${version}..." >&2
-    curl -fsSL -o "$cache_dir/$tarball" "$url"
-  fi
-  if [[ ! -d "$extract_dir" ]]; then
-    if [[ "$os" == "Linux" ]]; then
-      echo "${expected_sha256}  $cache_dir/$tarball" | sha256sum -c -
-    else
-      echo "${expected_sha256}  $cache_dir/$tarball" | shasum -a 256 -c -
-    fi
-    if ! tar -xJf "$cache_dir/$tarball" -C "$cache_dir"; then
-      echo "lint: failed to extract shellcheck (is xz installed? apt install xz-utils)." >&2
-      exit 1
-    fi
-  fi
-  cp "$extract_dir/shellcheck" "$bin"
-  chmod +x "$bin"
-  SHELLCHECK_BIN="$bin"
+  ensure_cached_binary shellcheck "$version" SHELLCHECK_BIN "$tarball" "$expected_sha256" "$url" shellcheck xz
 }
 
 ensure_actionlint() {
-  local version="$ACTIONLINT_VERSION"
-  local cache_dir="$ROOT/.cache/actionlint"
-  local extract_dir="$cache_dir/actionlint-${version}"
-  local bin="$cache_dir/actionlint-bin-${version}"
-  mkdir -p "$cache_dir"
-
-  if [[ -x "$bin" ]]; then
-    ACTIONLINT_BIN="$bin"
-    return
-  fi
-
-  local os arch tarball expected_sha256
+  local version="$ACTIONLINT_VERSION" os arch tarball expected_sha256 url
   os="$(uname -s)"
   arch="$(uname -m)"
   case "$os" in
@@ -138,23 +152,8 @@ ensure_actionlint() {
       exit 1
       ;;
   esac
-  if [[ ! -f "$cache_dir/$tarball" ]]; then
-    echo "lint: downloading actionlint ${version}..." >&2
-    curl -fsSL -o "$cache_dir/$tarball" \
-      "https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
-  fi
-  if [[ ! -d "$extract_dir" ]]; then
-    if [[ "$os" == "Linux" ]]; then
-      echo "${expected_sha256}  $cache_dir/$tarball" | sha256sum -c -
-    else
-      echo "${expected_sha256}  $cache_dir/$tarball" | shasum -a 256 -c -
-    fi
-    mkdir -p "$extract_dir"
-    tar -xzf "$cache_dir/$tarball" -C "$extract_dir"
-  fi
-  cp "$extract_dir/actionlint" "$bin"
-  chmod +x "$bin"
-  ACTIONLINT_BIN="$bin"
+  url="https://github.com/rhysd/actionlint/releases/download/v${version}/${tarball}"
+  ensure_cached_binary actionlint "$version" ACTIONLINT_BIN "$tarball" "$expected_sha256" "$url" actionlint gz
 }
 
 ensure_shellcheck

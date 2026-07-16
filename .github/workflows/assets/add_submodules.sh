@@ -30,7 +30,6 @@ create_new_repo_and_push() {
   git -C "$sub_clone" remote remove origin 2>/dev/null || true
   git -C "$sub_clone" remote add origin "$repo_url" || return 2
   git -C "$sub_clone" push -u origin "$MASTER_BRANCH" || return 2
-  git -C "$sub_clone" push origin "$MASTER_BRANCH" || return 2
   for lang_code in "${lang_codes_arr[@]}"; do
     local local_br="${LOCAL_BRANCH_PREFIX}${lang_code}"
     git -C "$sub_clone" checkout -B "$local_br" "$MASTER_BRANCH" || return 2

@@ -94,7 +94,7 @@ moves submodule SHAs on existing **`${LOCAL_BRANCH_PREFIX}*`** branches.
 | **`.github/workflows/assets/env.sh`** | Derives **`ORG`**, **`TRANSLATIONS_REPO`**, **`MODULE_ORG`**, **`BOOST_ORG`**, **`MASTER_BRANCH`**, **`LOCAL_BRANCH_PREFIX`**, **`TRANSLATION_BRANCH_PREFIX`**, **`WEBLATE_ENDPOINT_PATH`**, bot identity. |
 | **`.github/workflows/assets/lib.sh`** | Shared implementation: GitHub **`gh`** helpers, clone/prune, **`meta/libraries.json`** parsing, translations-repo branch and submodule updates. |
 | **`.github/workflows/assets/create-tag.yml`** | Template copied into each mirror; tags merged Weblate PRs (see **assets/README.md**). |
-| **`scripts/trigger-*.sh`** | Optional local wrappers around **`repository_dispatch`**; no server-side logic. |
+| **`scripts/trigger-*.sh`** | Optional local wrappers around **`repository_dispatch`**; both source shared **[`scripts/trigger-dispatch-common.sh`](../scripts/trigger-dispatch-common.sh)** (defaults, JSON build, POST). No server-side logic. |
 
 **Dependency direction.** Inline bash in **`add-submodules.yml`**,
 **`start-translation.yml`**, and **`sync-translation.yml`** sources **`env.sh`** then
@@ -144,7 +144,7 @@ holds **actual file** merges from **`master`** plus translator edits.
 ### 5.3 Pointer roll-up (**`sync-translation`**)
 
 1. **`discover`**: list **`refs/heads/local-*`** on the super-repo; emit JSON for the matrix.
-2. **`sync-local`** (matrix per **`lang_code`**, concurrency **`local-branch-{lang_code}`**): checkout one **`local-*`** branch, **`git submodule update --init`**, set **`submodule.<path>.branch`**, **`submodule update --remote`**, commit, **`push ----force-with-lease`**.
+2. **`sync-local`** (matrix per **`lang_code`**, concurrency **`local-branch-{lang_code}`**): checkout one **`local-*`** branch, **`git submodule update --init`**, set **`submodule.<path>.branch`**, **`submodule update --remote`**, commit, **`push --force-with-lease`**.
 
 ---
 
@@ -165,7 +165,6 @@ flowchart TD
   CB[combine_batch_and_finalize_rc]
   FTL[finalize_translations_local]
   TW[trigger_weblate]
-  Compose["Inline: submodule_fatal to 1, then finalize, then weblate last wins"]
   JobExit["Workflow step exit 0 or non-zero"]
 
   A0 -->|"record_submodule_update"| PSL
@@ -173,8 +172,10 @@ flowchart TD
   A2 -->|"record_submodule_fatal"| PSL
   PSL --> CB
   PSL --> FTL
-  CB -->|"add-submodules, sync-mirrors"| JobExit
-  FTL --> TW --> Compose --> JobExit
+  FTL -->|"finalize_rc"| CB
+  FTL -->|"rc == 0"| TW
+  TW -->|"weblate_rc"| CB
+  CB --> JobExit
 ```
 
 ### 6.1 Per-submodule batch processors
@@ -204,11 +205,12 @@ Processors that follow this contract:
 - **`rc == 1`**: ignored for exit purposes; batch continues.
 - **`rc == 2`**: calls **`record_submodule_fatal`**; increments **`submodule_fatal`**.
 
-**`combine_batch_and_finalize_rc finalize_rc`**:
+**`combine_batch_and_finalize_rc finalize_rc [weblate_rc]`**:
 
 1. Start **`exit_rc=0`**.
 2. If **`submodule_fatal > 0`** → **`exit_rc=1`** (fatals are collapsed, not propagated as **`2`**).
 3. If **`finalize_rc != 0`** → **`exit_rc=$finalize_rc`** (**finalize wins** over batch fatal).
+4. If **`weblate_rc != 0`** (optional second arg, default **`0`**) → **`exit_rc=$weblate_rc`** (**weblate wins** over finalize and batch fatal).
 
 ### 6.3 Workflow job exit
 
@@ -216,11 +218,16 @@ Processors that follow this contract:
 |---------------|----------------|
 | **`add-submodules.yml`** | **`add_submodules_main`** → **`combine_batch_and_finalize_rc`** |
 | **`start-translation.yml`** **`sync-mirrors`** | **`combine_batch_and_finalize_rc "$rc"`** after **`finalize_translations_master`** |
-| **`start-translation.yml`** **`start-local`** | Inline duplicate: **`submodule_fatal > 0` → 1**, then **`finalize_translations_local`** rc, then **`trigger_weblate`** rc (last non-zero assignment wins) |
+| **`start-translation.yml`** **`start-local`** | **`combine_batch_and_finalize_rc "$rc" "$weblate_rc"`** after **`finalize_translations_local`** and **`trigger_weblate`** (Weblate runs only when finalize succeeded; collapse still considers all three sources) |
 
 On partial submodule failure, **`sync-mirrors`** still finalizes successful submodule
-pointers in the super-repo, then exits non-zero so downstream jobs can distinguish full
-success from partial failure.
+pointers in the super-repo via **`finalize_translations_master`**, then exits non-zero
+when **`combine_batch_and_finalize_rc`** reports failure. In that case it does **not**
+set the job output **`updated_submodules`** (only written when **`exit_rc == 0`**), so
+**`start-local`** is skipped: its **`if:`** requires a non-empty **`updated_submodules`**
+JSON array. Operators may expect partial mirror success to still hand off per-language
+Weblate work, but the workflow gate requires **full** **`sync-mirrors`** success before
+any **`start-local`** matrix job runs.
 
 ### 6.4 Related conventions (not the batch 0/1/2 contract)
 

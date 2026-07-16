@@ -59,7 +59,7 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
           begin_phase "$PHASE_SETUP" "Validate language matrix"
           parse_and_validate_lang_codes
-          langs_json=$(printf '%s\n' "${lang_codes_arr[@]}" | jq -R . | jq -s -c .)
+          langs_json=$(submodule_names_to_json "${lang_codes_arr[@]}")
           echo "json=$langs_json" >> "$GITHUB_OUTPUT"
           echo "Lang codes: ${lang_codes_arr[*]}" >&2
           end_phase
@@ -282,10 +282,6 @@ jobs:
             echo "Skipping Weblate add-or-update: finalize_translations_local failed (rc=$rc)." >&2
           fi
 
-          exit_rc=0
-          [[ $submodule_fatal -gt 0 ]] && exit_rc=1
-          [[ $rc -ne 0 ]] && exit_rc=$rc
-          [[ $weblate_rc -ne 0 ]] && exit_rc=$weblate_rc
-          [[ $exit_rc -ne 0 ]] && exit $exit_rc
+          combine_batch_and_finalize_rc "$rc" "$weblate_rc" || exit $?
 
           echo "Done." >&2

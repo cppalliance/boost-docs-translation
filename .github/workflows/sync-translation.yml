@@ -74,7 +74,7 @@ jobs:
           done
           validate_lang_codes "${lang_codes_arr[@]}"
 
-          langs_json=$(printf '%s\n' "${lang_codes_arr[@]}" | jq -R . | jq -s -c .)
+          langs_json=$(submodule_names_to_json "${lang_codes_arr[@]}")
           echo "json=$langs_json" >> "$GITHUB_OUTPUT"
           end_phase
 
@@ -111,8 +111,7 @@ jobs:
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
 
-          git config user.name "$BOT_NAME"
-          git config user.email "$BOT_EMAIL"
+          set_git_bot_config "$GITHUB_WORKSPACE"
 
           branch="${LOCAL_BRANCH_PREFIX}${SYNC_LANG}"
           begin_phase "$PHASE_SYNC_POINTERS" "Sync pointers on $branch"

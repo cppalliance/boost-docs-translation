@@ -125,6 +125,42 @@ EOF
   [ "$status" -eq 1 ]
 }
 
+@test "combine_batch_and_finalize_rc: weblate_rc only yields non-zero" {
+  submodule_fatal=0
+  run combine_batch_and_finalize_rc 0 1
+  [ "$status" -eq 1 ]
+}
+
+@test "combine_batch_and_finalize_rc: weblate_rc wins over submodule_fatal" {
+  submodule_fatal=2
+  run combine_batch_and_finalize_rc 0 5
+  [ "$status" -eq 5 ]
+}
+
+@test "combine_batch_and_finalize_rc: weblate_rc wins over finalize_rc" {
+  submodule_fatal=0
+  run combine_batch_and_finalize_rc 3 5
+  [ "$status" -eq 5 ]
+}
+
+@test "combine_batch_and_finalize_rc: weblate_rc wins over fatal and finalize" {
+  submodule_fatal=2
+  run combine_batch_and_finalize_rc 3 5
+  [ "$status" -eq 5 ]
+}
+
+@test "combine_batch_and_finalize_rc: fatal plus finalize non-zero yields finalize" {
+  submodule_fatal=2
+  run combine_batch_and_finalize_rc 3 0
+  [ "$status" -eq 3 ]
+}
+
+@test "combine_batch_and_finalize_rc: fatal plus finalize_rc 2 yields 2" {
+  submodule_fatal=2
+  run combine_batch_and_finalize_rc 2 0
+  [ "$status" -eq 2 ]
+}
+
 @test "init_translation_work_dirs: creates BOOST_WORK and optional ORG_WORK" {
   run bash -c '
     set -euo pipefail

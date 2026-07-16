@@ -25,11 +25,27 @@ are a separate namespace — see [README](README.md#releases) and
 
 ### Changed
 
+- Extracted shared dispatch helpers into
+  [`scripts/trigger-dispatch-common.sh`](scripts/trigger-dispatch-common.sh)
+  (`DEFAULT_REPO`, `DEFAULT_VERSION`, JSON build, `POST …/dispatches`); both
+  `trigger-*.sh` wrappers source it.
+- Mirror **`create-tag.yml`** bot identity now uses **`set_git_bot_config`** from
+  **`env.sh`** / **`lib.sh`** instead of a hardcoded org email.
 - Renamed and expanded operator quick reference to
   [GETTING-STARTED.md](docs/GETTING-STARTED.md): end-to-end walkthrough with
   per-step verification and create-tag coverage.
 - [endpoint-contract.md](docs/endpoint-contract.md) Outbound Weblate section:
   request schema is now the source of truth for payload fields.
+
+### Fixed
+
+- Clone and finalize steps now fail fast: **`clone_repo`**, **`sync_translations_branch`**,
+  and **`finalize_translations_*`** propagate non-zero status instead of continuing with
+  incomplete state.
+- **`combine_batch_and_finalize_rc`** collapses all three exit sources—batch
+  **`submodule_fatal`**, **`finalize_rc`**, and optional **`weblate_rc`**—with documented
+  last-wins priority; **`start-translation.yml`** **`start-local`** delegates to it instead
+  of inline collapse logic.
 
 ## [1.0.0] - 2026-07-07
 
