@@ -10,7 +10,8 @@
 # Per-submodule batch return convention (see docs/ARCHITECTURE.md §6):
 #   0 = success, 1 = non-fatal skip, 2 = fatal error.
 # process_submodule_list collapses 2 → submodule_fatal; combine_batch_and_finalize_rc
-# maps submodule_fatal to job exit 1 (finalize_rc wins when non-zero).
+# maps submodule_fatal to job exit 1 (finalize_rc wins when non-zero; optional weblate_rc
+# overrides both when non-zero).
 # shellcheck disable=SC2034,SC2154
 
 # Create temp workspace dirs. Pass "with_org_work" to also set ORG_WORK.
@@ -115,12 +116,14 @@ process_submodule_list() {
   return 0
 }
 
-# Combine submodule_fatal count with finalize_rc; return combined exit code.
+# Combine submodule_fatal count with finalize_rc and optional weblate_rc; return combined exit code.
 combine_batch_and_finalize_rc() {
   local finalize_rc="${1:-0}"
+  local weblate_rc="${2:-0}"
   local exit_rc=0
   [[ "${submodule_fatal:-0}" -gt 0 ]] && exit_rc=1
   [[ "$finalize_rc" -ne 0 ]] && exit_rc=$finalize_rc
+  [[ "$weblate_rc" -ne 0 ]] && exit_rc=$weblate_rc
   return "$exit_rc"
 }
 

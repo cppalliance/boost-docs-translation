@@ -72,7 +72,7 @@ has_open_translation_pr() {
 # Clone repo at branch/tag into $3. Pass "keep" as $4 to preserve .git.
 clone_repo() {
   mkdir -p "$3"
-  git clone --branch "$2" "$1" "$3"
+  git clone --branch "$2" "$1" "$3" || return 2
   [[ "${4:-}" == "keep" ]] || rm -rf "$3/.git"
 }
 
@@ -236,9 +236,10 @@ commit_and_push_translations_branch() {
 # Update one branch of the translations super-repo (checkout → update pointers → push).
 sync_translations_branch() {
   local dir="$1" branch="$2" libs_ref="$3" force="${4:-false}"
+  local sub
   git -C "$dir" checkout -B "$branch" "origin/$branch"
   for sub in "${UPDATES[@]}"; do
-    update_translations_submodule "$dir" "$MODULE_ORG" "$sub" "$branch"
+    update_translations_submodule "$dir" "$MODULE_ORG" "$sub" "$branch" || return 2
   done
   commit_and_push_translations_branch "$dir" "$branch" "$libs_ref" "$force"
 }

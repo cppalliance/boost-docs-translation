@@ -197,6 +197,20 @@ teardown() {
   cleanup_git_fixture_root
 }
 
+@test "clone_repo: failed git clone yields non-zero" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  dest="$GIT_FIXTURE_ROOT/clone-dest"
+
+  set +e
+  clone_repo "file://$GIT_FIXTURE_ROOT/does-not-exist.git" "master" "$dest" keep
+  status=$?
+  set -e
+
+  [ "$status" -ne 0 ]
+}
+
 @test "finalize_translations_master: no-op when UPDATES empty" {
   # shellcheck source=tests/helpers/git_fixtures.bash
   source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"

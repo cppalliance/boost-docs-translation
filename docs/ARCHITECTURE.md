@@ -204,11 +204,12 @@ Processors that follow this contract:
 - **`rc == 1`**: ignored for exit purposes; batch continues.
 - **`rc == 2`**: calls **`record_submodule_fatal`**; increments **`submodule_fatal`**.
 
-**`combine_batch_and_finalize_rc finalize_rc`**:
+**`combine_batch_and_finalize_rc finalize_rc [weblate_rc]`**:
 
 1. Start **`exit_rc=0`**.
 2. If **`submodule_fatal > 0`** → **`exit_rc=1`** (fatals are collapsed, not propagated as **`2`**).
 3. If **`finalize_rc != 0`** → **`exit_rc=$finalize_rc`** (**finalize wins** over batch fatal).
+4. If **`weblate_rc != 0`** (optional second arg, default **`0`**) → **`exit_rc=$weblate_rc`** (**weblate wins** over finalize and batch fatal).
 
 ### 6.3 Workflow job exit
 
@@ -216,7 +217,7 @@ Processors that follow this contract:
 |---------------|----------------|
 | **`add-submodules.yml`** | **`add_submodules_main`** → **`combine_batch_and_finalize_rc`** |
 | **`start-translation.yml`** **`sync-mirrors`** | **`combine_batch_and_finalize_rc "$rc"`** after **`finalize_translations_master`** |
-| **`start-translation.yml`** **`start-local`** | Inline duplicate: **`submodule_fatal > 0` → 1**, then **`finalize_translations_local`** rc, then **`trigger_weblate`** rc (last non-zero assignment wins) |
+| **`start-translation.yml`** **`start-local`** | **`combine_batch_and_finalize_rc "$finalize_rc" "$weblate_rc"`** after **`finalize_translations_local`** and **`trigger_weblate`** (Weblate runs only when finalize succeeded; collapse still considers all three sources) |
 
 On partial submodule failure, **`sync-mirrors`** still finalizes successful submodule
 pointers in the super-repo, then exits non-zero so downstream jobs can distinguish full

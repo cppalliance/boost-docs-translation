@@ -99,3 +99,29 @@ install_translations_submodule_fixtures() {
 
   [ "$status" -ne 0 ]
 }
+
+@test "sync_translations_branch: failed update_translations_submodule yields non-zero" {
+  install_translations_submodule_fixtures
+  rm -rf "$GIT_FIXTURE_ROOT/remotes/${MODULE_ORG}/algorithm.git"
+
+  UPDATES=("algorithm")
+  set +e
+  sync_translations_branch "$trans_dir" "$MASTER_BRANCH" "$libs_ref" false
+  status=$?
+  set -e
+
+  [ "$status" -ne 0 ]
+}
+
+@test "finalize_translations_master: failed update_translations_submodule yields non-zero" {
+  install_translations_submodule_fixtures
+  rm -rf "$GIT_FIXTURE_ROOT/remotes/${MODULE_ORG}/algorithm.git"
+
+  UPDATES=("algorithm")
+  set +e
+  finalize_translations_master "$trans_dir" "$libs_ref"
+  status=$?
+  set -e
+
+  [ "$status" -ne 0 ]
+}
