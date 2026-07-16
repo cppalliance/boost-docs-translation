@@ -37,6 +37,16 @@ are a separate namespace — see [README](README.md#releases) and
 - [endpoint-contract.md](docs/endpoint-contract.md) Outbound Weblate section:
   request schema is now the source of truth for payload fields.
 
+### Fixed
+
+- Clone and finalize steps now fail fast: **`clone_repo`**, **`sync_translations_branch`**,
+  and **`finalize_translations_*`** propagate non-zero status instead of continuing with
+  incomplete state.
+- **`combine_batch_and_finalize_rc`** collapses all three exit sources—batch
+  **`submodule_fatal`**, **`finalize_rc`**, and optional **`weblate_rc`**—with documented
+  last-wins priority; **`start-translation.yml`** **`start-local`** delegates to it instead
+  of inline collapse logic.
+
 ## [1.0.0] - 2026-07-07
 
 Initial semver baseline for the orchestration repo. Summarizes the operator and
