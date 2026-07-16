@@ -221,8 +221,13 @@ Processors that follow this contract:
 | **`start-translation.yml`** **`start-local`** | **`combine_batch_and_finalize_rc "$rc" "$weblate_rc"`** after **`finalize_translations_local`** and **`trigger_weblate`** (Weblate runs only when finalize succeeded; collapse still considers all three sources) |
 
 On partial submodule failure, **`sync-mirrors`** still finalizes successful submodule
-pointers in the super-repo, then exits non-zero so downstream jobs can distinguish full
-success from partial failure.
+pointers in the super-repo via **`finalize_translations_master`**, then exits non-zero
+when **`combine_batch_and_finalize_rc`** reports failure. In that case it does **not**
+set the job output **`updated_submodules`** (only written when **`exit_rc == 0`**), so
+**`start-local`** is skipped: its **`if:`** requires a non-empty **`updated_submodules`**
+JSON array. Operators may expect partial mirror success to still hand off per-language
+Weblate work, but the workflow gate requires **full** **`sync-mirrors`** success before
+any **`start-local`** matrix job runs.
 
 ### 6.4 Related conventions (not the batch 0/1/2 contract)
 
