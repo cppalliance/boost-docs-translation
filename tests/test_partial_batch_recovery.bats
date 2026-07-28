@@ -83,6 +83,16 @@ remote_head() {
   mv "$GIT_FIXTURE_ROOT/json.git.offline" "$GIT_FIXTURE_ROOT/json.git"
   # The failed run committed locally but never pushed, so the remote is untouched.
   [ "$(remote_head json)" = "$json_start" ]
+
+  # Production clones each destination fresh per run (sync_one_submodule works in
+  # a mktemp -d workspace), so re-clone from each bare remote instead of reusing
+  # run 1's checkout. This proves the recovering submodule re-commits and pushes
+  # against the unchanged remote rather than pushing run 1's leftover local commit.
+  for sub in algorithm json system; do
+    rm -rf "$GIT_FIXTURE_ROOT/${sub}-dest"
+    git clone "$GIT_FIXTURE_ROOT/${sub}.git" "$GIT_FIXTURE_ROOT/${sub}-dest"
+  done
+
   init_translation_state
   init_submodule_summary_buckets
 
