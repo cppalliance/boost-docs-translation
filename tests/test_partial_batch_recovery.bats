@@ -81,6 +81,8 @@ remote_head() {
 
   # --- Run 2: json's remote is restored; re-run the same batch fresh. ---
   mv "$GIT_FIXTURE_ROOT/json.git.offline" "$GIT_FIXTURE_ROOT/json.git"
+  # The failed run committed locally but never pushed, so the remote is untouched.
+  [ "$(remote_head json)" = "$json_start" ]
   init_translation_state
   init_submodule_summary_buckets
 
