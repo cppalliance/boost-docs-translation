@@ -36,6 +36,31 @@ EOF
   [ "$output" = "json" ]
 }
 
+@test "require_libs_submodules_in_gitmodules: succeeds when libs/ paths exist" {
+  local gitmodules
+  gitmodules="$(mktemp)"
+  cat >"$gitmodules" <<'EOF'
+[submodule "libs/json"]
+	path = libs/json
+EOF
+  run require_libs_submodules_in_gitmodules "$gitmodules"
+  rm -f "$gitmodules"
+  [ "$status" -eq 0 ]
+}
+
+@test "require_libs_submodules_in_gitmodules: fails when no libs/ paths" {
+  local gitmodules
+  gitmodules="$(mktemp)"
+  cat >"$gitmodules" <<'EOF'
+[submodule "other"]
+	path = other/path
+EOF
+  run require_libs_submodules_in_gitmodules "$gitmodules"
+  rm -f "$gitmodules"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Run add-submodules first."* ]]
+}
+
 @test "resolve_add_submodules_names: uses SUBMODULES when set" {
   SUBMODULES="algorithm, system"
   LIBS_REF="develop"

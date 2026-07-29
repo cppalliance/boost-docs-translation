@@ -47,6 +47,15 @@ libs_submodule_names_from_gitmodules_file() {
     | sed 's|^libs/||'
 }
 
+# Return 1 when .gitmodules has no libs/ submodule paths.
+require_libs_submodules_in_gitmodules() {
+  local gitmodules_file="$1"
+  if ! libs_submodule_names_from_gitmodules_file "$gitmodules_file" | grep -q .; then
+    phase_err "No libs/ submodules in .gitmodules. Run add-submodules first."
+    return 1
+  fi
+}
+
 # Fetch ${BOOST_ORG}/boost .gitmodules at ref; print raw content. Return 1 on failure.
 fetch_boost_gitmodules_at_ref() {
   local ref="$1"
