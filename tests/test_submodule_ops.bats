@@ -37,13 +37,22 @@ EOF
 }
 
 @test "require_libs_submodules_in_gitmodules: succeeds when libs/ paths exist" {
-  local gitmodules
+  local gitmodules i name
   gitmodules="$(mktemp)"
-  cat >"$gitmodules" <<'EOF'
-[submodule "libs/json"]
-	path = libs/json
+  for i in {1..256}; do
+    name="lib${i}"
+    cat >>"$gitmodules" <<EOF
+[submodule "libs/${name}"]
+	path = libs/${name}
 EOF
-  run require_libs_submodules_in_gitmodules "$gitmodules"
+  done
+  run bash -c '
+    set -o pipefail
+    # shellcheck source=tests/helpers/common.bash
+    source "$1/helpers/common.bash"
+    load_submodule_ops
+    require_libs_submodules_in_gitmodules "$2"
+  ' _ "$BATS_TEST_DIRNAME" "$gitmodules"
   rm -f "$gitmodules"
   [ "$status" -eq 0 ]
 }

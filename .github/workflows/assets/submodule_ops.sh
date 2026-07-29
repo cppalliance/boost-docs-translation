@@ -50,7 +50,9 @@ libs_submodule_names_from_gitmodules_file() {
 # Return 1 when .gitmodules has no libs/ submodule paths.
 require_libs_submodules_in_gitmodules() {
   local gitmodules_file="$1"
-  if ! libs_submodule_names_from_gitmodules_file "$gitmodules_file" | grep -q .; then
+  local names
+  names=$(libs_submodule_names_from_gitmodules_file "$gitmodules_file")
+  if [[ -z "$names" ]]; then
     phase_err "No libs/ submodules in .gitmodules. Run add-submodules first."
     return 1
   fi
