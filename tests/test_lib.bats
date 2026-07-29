@@ -345,7 +345,7 @@ teardown() {
   git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
 }
 
-@test "finalize_translations_local: fail-fast on lease rejection (no retry)" {
+@test "finalize_translations_local: retries and succeeds after a transient lease rejection" {
   # shellcheck source=tests/helpers/git_fixtures.bash
   source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
   init_git_fixture_root
@@ -358,22 +358,53 @@ teardown() {
   UPDATES=("algorithm")
   update_translations_submodule() { :; }
 
-  local fetch_counter="$BATS_TMPDIR/fetch-count"
-  : >"$fetch_counter"
-  install_git_fetch_counter "$fetch_counter" "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance"
-
-  remote_sha_before=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  # Advance the remote only on the first push; the retry (after a fetch) lands.
+  install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance" 1
 
   set +e
   finalize_translations_local "$trans_dir" "develop" "en" 2>/dev/null
   rc=$?
   set -e
 
+  [ "$rc" -eq 0 ]
+  # our branch is the remote tip, and the transient advance was overwritten
+  local_sha=$(git -C "$trans_dir" rev-parse "${LOCAL_BRANCH_PREFIX}en")
+  remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  [ "$local_sha" = "$remote_sha" ]
+  ! git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
+}
+
+@test "finalize_translations_local: fails after force-with-lease retries are exhausted" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+
+  UPDATES=("algorithm")
+  update_translations_submodule() { :; }
+
+  # Advance the remote before every push, so all three attempts are rejected.
+  # The counter also records fetches: 1 finalize pre-fetch + 2 between retries.
+  local fetch_counter="$BATS_TMPDIR/fetch-count"
+  : >"$fetch_counter"
+  install_git_fetch_counter "$fetch_counter" "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance"
+
+  local stderr_file="$BATS_TMPDIR/finalize-exhausted-stderr"
+  set +e
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
+  rc=$?
+  set -e
+
   [ "$rc" -ne 0 ]
-  [ "$(wc -l <"$fetch_counter")" -eq 1 ]
-  remote_sha_after=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
-  [ "$remote_sha_before" != "$remote_sha_after" ]
-  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha_after" | grep -q "concurrent advance"
+  [ "$(wc -l <"$fetch_counter")" -eq 3 ]
+  grep -q "force-with-lease push rejected" "$stderr_file"
+  remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  grep -q "$remote_sha" "$stderr_file"
+  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
 }
 
 @test "commit_and_push_translations_branch: clear error when force-with-lease unsupported" {

@@ -208,7 +208,7 @@ git_push_supports_force_with_lease() {
 
 commit_and_push_translations_branch() {
   local dir="$1" branch="$2" libs_ref="$3" force="${4:-false}"
-  local push_rc remote_sha
+  local push_rc remote_sha attempt max_attempts=3
   git -C "$dir" status --short
   if git -C "$dir" diff --cached --quiet; then
     echo "  No staged submodule changes on $branch; skipping commit." >&2
@@ -220,14 +220,22 @@ commit_and_push_translations_branch() {
       phase_err "git push --force-with-lease is not supported by this Git installation"
       return 1
     fi
-    if git -C "$dir" push --force-with-lease origin "$branch"; then
-      :
-    else
-      push_rc=$?
-      remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')
-      phase_err "force-with-lease push rejected for branch $branch (remote HEAD=${remote_sha:-unknown}); remote may have advanced concurrently — re-run after fetch or resolve manually."
-      return "$push_rc"
-    fi
+    # A concurrent advance during the daily run rejects the lease. Fetch so the
+    # local ref reflects the advanced remote, then retry; fail closed once the
+    # attempts are exhausted so a persistent divergence still surfaces.
+    for (( attempt=1; attempt<=max_attempts; attempt++ )); do
+      if git -C "$dir" push --force-with-lease origin "$branch"; then
+        return 0
+      else
+        push_rc=$?
+      fi
+      if (( attempt < max_attempts )); then
+        git -C "$dir" fetch origin "$branch"
+      fi
+    done
+    remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')
+    phase_err "force-with-lease push rejected for branch $branch (remote HEAD=${remote_sha:-unknown}); remote may have advanced concurrently — re-run after fetch or resolve manually."
+    return "$push_rc"
   else
     git -C "$dir" push origin "$branch"
   fi
