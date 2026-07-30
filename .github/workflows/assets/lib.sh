@@ -214,7 +214,7 @@ git_push_supports_force_if_includes() {
 
 commit_and_push_translations_branch() {
   local dir="$1" branch="$2" libs_ref="$3" force="${4:-false}"
-  local push_rc remote_sha attempt max_attempts=3
+  local push_rc remote_sha fetch_rc attempt max_attempts=3
   git -C "$dir" status --short
   if git -C "$dir" diff --cached --quiet; then
     echo "  No staged submodule changes on $branch; skipping commit." >&2
@@ -242,7 +242,14 @@ commit_and_push_translations_branch() {
         push_rc=$?
       fi
       if (( attempt < max_attempts )); then
-        git -C "$dir" fetch origin "$branch"
+        # A failed fetch (auth/network) leaves the tracking ref stale, so a
+        # retry can't satisfy the lease. Fail with the real cause instead of
+        # letting the loop misreport it as a concurrent-advance rejection.
+        git -C "$dir" fetch origin "$branch" || {
+          fetch_rc=$?
+          phase_err "failed to fetch origin/$branch before retrying the push"
+          return "$fetch_rc"
+        }
       fi
     done
     remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')

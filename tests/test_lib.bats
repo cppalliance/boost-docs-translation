@@ -407,6 +407,35 @@ teardown() {
   git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
 }
 
+@test "finalize_translations_local: fails with the real cause when an inter-attempt fetch fails" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+
+  UPDATES=("algorithm")
+  update_translations_submodule() { :; }
+
+  # First push is rejected (one concurrent advance), then the inter-attempt
+  # `git fetch origin <branch>` fails.
+  install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance" 1 1
+
+  local stderr_file="$BATS_TMPDIR/finalize-fetch-fail-stderr"
+  set +e
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
+  rc=$?
+  set -e
+
+  [ "$rc" -ne 0 ]
+  grep -q "failed to fetch origin/${LOCAL_BRANCH_PREFIX}en" "$stderr_file"
+  # not misreported as a concurrent-advance rejection
+  ! grep -q "force-with-lease push rejected" "$stderr_file"
+}
+
 @test "commit_and_push_translations_branch: clear error when force-with-lease unsupported" {
   # shellcheck source=tests/helpers/git_fixtures.bash
   source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"

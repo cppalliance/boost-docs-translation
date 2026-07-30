@@ -89,19 +89,25 @@ push_commit_to_remote_branch() {
 # A git wrapper that injects a concurrent advance before each force-with-lease
 # push, so the lease is rejected. The optional 4th arg caps how many pushes get a
 # fresh advance (0 = every push, the default); pass 1 to simulate a transient
-# rejection that a retry then clears.
+# rejection that a retry then clears. Pass 1 as the 5th arg to also fail every
+# branch-specific `git fetch origin <branch>` (the inter-attempt retry fetch).
 install_git_push_pre_hook() {
-  local bare="$1" branch="$2" message="${3:-concurrent advance}" max_injections="${4:-0}"
+  local bare="$1" branch="$2" message="${3:-concurrent advance}" max_injections="${4:-0}" fail_branch_fetch="${5:-0}"
   local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
   REAL_GIT="$(command -v git)"
   export REAL_GIT
   export GIT_HOOK_BARE_REMOTE="$bare" GIT_HOOK_BRANCH="$branch" GIT_HOOK_MESSAGE="$message"
   export GIT_HOOK_MAX_INJECTIONS="$max_injections"
   export GIT_HOOK_INJECT_COUNTER="$GIT_FIXTURE_ROOT/inject-count"
+  export GIT_HOOK_FAIL_BRANCH_FETCH="$fail_branch_fetch"
   : >"$GIT_HOOK_INJECT_COUNTER"
   mkdir -p "$wrapper_dir"
   cat >"$wrapper_dir/git" <<'EOF'
 #!/usr/bin/env bash
+if [[ "$GIT_HOOK_FAIL_BRANCH_FETCH" == "1" && "${1:-}" == "-C" && "${3:-}" == "fetch" && -n "${5:-}" ]]; then
+  echo "simulated fetch failure" >&2
+  exit 1
+fi
 if [[ "${1:-}" == "-C" && "${3:-}" == "push" && "$*" == *"--force-with-lease"* ]]; then
   injected="$(wc -l <"$GIT_HOOK_INJECT_COUNTER" 2>/dev/null || echo 0)"
   if [[ "$GIT_HOOK_MAX_INJECTIONS" -eq 0 || "$injected" -lt "$GIT_HOOK_MAX_INJECTIONS" ]]; then
@@ -132,7 +138,7 @@ restore_git_push_pre_hook() {
     rm -rf "$GIT_WRAPPER_DIR"
     unset GIT_WRAPPER_DIR REAL_GIT
     unset GIT_HOOK_BARE_REMOTE GIT_HOOK_BRANCH GIT_HOOK_MESSAGE GIT_FETCH_COUNTER_FILE
-    unset GIT_HOOK_MAX_INJECTIONS GIT_HOOK_INJECT_COUNTER
+    unset GIT_HOOK_MAX_INJECTIONS GIT_HOOK_INJECT_COUNTER GIT_HOOK_FAIL_BRANCH_FETCH
   fi
 }
 
