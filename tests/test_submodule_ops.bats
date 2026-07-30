@@ -60,11 +60,14 @@ EOF
 @test "require_libs_submodules_in_gitmodules: fails when no libs/ paths" {
   local gitmodules
   gitmodules="$(mktemp)"
-  cat >"$gitmodules" <<'EOF'
-[submodule "other"]
-	path = other/path
-EOF
-  run require_libs_submodules_in_gitmodules "$gitmodules"
+  : >"$gitmodules"
+  run bash -c '
+    set -o pipefail
+    # shellcheck source=tests/helpers/common.bash
+    source "$1/helpers/common.bash"
+    load_submodule_ops
+    require_libs_submodules_in_gitmodules "$2"
+  ' _ "$BATS_TEST_DIRNAME" "$gitmodules"
   rm -f "$gitmodules"
   [ "$status" -eq 1 ]
   [[ "$output" == *"Run add-submodules first."* ]]
