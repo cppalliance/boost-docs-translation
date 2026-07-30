@@ -66,7 +66,8 @@ linked README sections for scope, format, and which workflows consume each value
 
 ## 1. Local trigger setup (optional)
 
-To fire dispatches from a clone of this repo instead of the GitHub API or UI:
+To fire dispatches from a clone of this repo instead of the GitHub API
+(`POST …/dispatches` or `gh api`):
 
 ```bash
 cp .env.example .env   # set GH_TOKEN (GITHUB_TOKEN is also accepted)
@@ -117,14 +118,12 @@ scripts/trigger-add-submodules.sh \
 ```
 
 - Omit **`--lang-codes`** to use repository variable **`LANG_CODES`**.
-- Omit **`--submodules`** to use the script default **`DEFAULT_SUBMODULES`**
-  (`unordered, json`; see
-  [trigger-add-submodules.sh](../scripts/trigger-add-submodules.sh#L40)) — **not**
-  auto-discovery from **`boostorg/boost`**. The script substitutes that default
-  before building the payload
-  ([`SUBMODULES` assignment](../scripts/trigger-add-submodules.sh#L99)), so `client_payload.submodules`
-  is never omitted. Full discovery runs only when the workflow receives a dispatch
-  **without** a `submodules` field (raw API / GitHub UI).
+- **`--submodules` is required** when using this script (comma-separated library
+  names). To process all Boost libraries, omit `submodules` from a **raw**
+  `repository_dispatch` payload sent via the GitHub API (for example
+  `POST …/dispatches` or `gh api repos/{owner}/{repo}/dispatches`) — the workflow
+  then auto-discovers the full list from **`boostorg/boost`** `.gitmodules` via
+  **`resolve_add_submodules_names`**.
 
 ### Expected outcome
 
@@ -238,7 +237,7 @@ Runs automatically **daily at 00:00 UTC** (`0 0 * * *`) or on manual dispatch.
 | Item     | Value                                                                 |
 | -------- | --------------------------------------------------------------------- |
 | Workflow | [`.github/workflows/sync-translation.yml`](../.github/workflows/sync-translation.yml) |
-| Script   | **None** — use the dispatches API, GitHub UI, or the curl example below |
+| Script   | **None** — use the dispatches API or the curl example below |
 | Trigger  | `repository_dispatch` with `event_type: sync-translation` (no `client_payload`) |
 
 ### Trigger (JSON)

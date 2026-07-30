@@ -101,7 +101,7 @@ submodule pointer updates, and Boost release refs in `client_payload.version`.
 | Workflow         | `.github/workflows/add-submodules.yml`                                                                                |
 | Body shape       | `{"event_type":"add-submodules","client_payload":{...}}`                                                              |
 | `client_payload` | All optional: `version`, `submodules` (list-like string), `lang_codes` (comma-separated). See [README](../README.md). |
-| Script           | `scripts/trigger-add-submodules.sh` builds JSON with `jq` or Python; omits empty optional fields. Both trigger scripts source shared [`scripts/trigger-dispatch-common.sh`](../scripts/trigger-dispatch-common.sh). |
+| Script           | `scripts/trigger-add-submodules.sh` builds JSON with `jq` or Python; omits empty optional fields; **`--submodules` is required** on the script even though the API field is optional. Both trigger scripts source shared [`scripts/trigger-dispatch-common.sh`](../scripts/trigger-dispatch-common.sh). |
 
 ### `event_type: start-translation`
 

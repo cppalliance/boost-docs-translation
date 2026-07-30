@@ -75,12 +75,12 @@ build_dispatch_json() {
       json_pairs="$(jq -n --argjson arr "$json_pairs" --arg k "$key" --arg v "$val" \
         '$arr + [{key: $k, value: $v}]')"
     done
-    jq -n --arg event_type "$event_type" --argjson pairs "$json_pairs" \
+    jq -n --arg event_type "$event_type" --argjson kv_pairs "$json_pairs" \
       '{
         event_type: $event_type,
         client_payload: (
           {}
-          | reduce pairs[] as $p (
+          | reduce $kv_pairs[] as $p (
               .;
               if ($p.value | length) > 0 then . + {($p.key): $p.value} else . end
             )

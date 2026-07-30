@@ -36,9 +36,16 @@ are a separate namespace — see [README](README.md#releases) and
   per-step verification and create-tag coverage.
 - [endpoint-contract.md](docs/endpoint-contract.md) Outbound Weblate section:
   request schema is now the source of truth for payload fields.
+- `scripts/trigger-add-submodules.sh` now requires `--submodules`; the
+  `unordered, json` script default is removed so the operator script cannot
+  silently diverge from raw API auto-discovery.
+- Bats coverage for `scripts/trigger-dispatch-common.sh`, `trigger-add-submodules.sh`,
+  and `trigger-start-translation.sh`.
 
 ### Fixed
 
+- `build_dispatch_json` in `trigger-dispatch-common.sh`: avoid jq 1.7 naming
+  collision with the built-in `pairs` function.
 - Clone and finalize steps now fail fast: **`clone_repo`**, **`sync_translations_branch`**,
   and **`finalize_translations_*`** propagate non-zero status instead of continuing with
   incomplete state.

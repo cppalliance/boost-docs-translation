@@ -12,7 +12,7 @@
 #
 # Usage:
 #   scripts/trigger-add-submodules.sh [--repo OWNER/NAME] [--token PAT] \
-#     [--version REF] [--submodules 'a, b'] [--lang-codes zh_Hans,ja]
+#     --submodules 'a, b' [--version REF] [--lang-codes zh_Hans,ja]
 #
 # If --repo is omitted: GITHUB_REPOSITORY, then git origin, then DEFAULT_REPO below.
 
@@ -34,18 +34,13 @@ source "$_ASSETS_DIR/lib.sh"
 source "$_REPO_ROOT/scripts/trigger-dispatch-common.sh"
 unset _REPO_ROOT _ASSETS_DIR
 
-# ---------------------------------------------------------------------------
-# Typical run — edit these. CLI flags override (except --token uses env/PAT).
-# ---------------------------------------------------------------------------
-DEFAULT_SUBMODULES="unordered, json"
-
 usage() {
   cat <<'EOF'
 Trigger add-submodules.yml via repository_dispatch (POST .../dispatches).
 
 Usage:
   scripts/trigger-add-submodules.sh [--repo OWNER/NAME] [--token PAT] \
-    [--version REF] [--submodules 'a, b'] [--lang-codes zh_Hans,ja]
+    --submodules 'a, b' [--version REF] [--lang-codes zh_Hans,ja]
 
 Requires: curl; jq or Python 3 (python3 / python)
 Auth: .env (GH_TOKEN), GH_TOKEN / GITHUB_TOKEN in env, or --token (needs repo scope on the target).
@@ -54,7 +49,7 @@ Options:
   --repo OWNER/REPO     Target repository (default: GITHUB_REPOSITORY, then origin, then DEFAULT_REPO)
   --token PAT           GitHub token
   --version REF         Boost ref; default DEFAULT_VERSION in script
-  --submodules LIST     default DEFAULT_SUBMODULES in script
+  --submodules LIST     comma-separated library names (required)
   --lang-codes CSV      optional; omit → workflow uses repo vars.LANG_CODES
 EOF
 }
@@ -86,6 +81,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "$SUBMODULES" ]]; then
+  echo "error: --submodules is required (comma-separated library names)" >&2
+  usage >&2
+  exit 1
+fi
+
 require_curl || exit 1
 
 TOKEN="$(resolve_trigger_token "$TOKEN")" || exit 1
@@ -96,7 +97,6 @@ REPO="$(resolve_trigger_repo "$REPO")" || {
 }
 
 VERSION="${VERSION:-$DEFAULT_VERSION}"
-SUBMODULES="${SUBMODULES:-$DEFAULT_SUBMODULES}"
 
 validate_event_type "$EVENT_ADD_SUBMODULES"
 

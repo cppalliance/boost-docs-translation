@@ -145,3 +145,114 @@ restore_curl_stub() {
   fi
   unset CURL_WRAPPER_DIR REAL_CURL _CURL_ORIG_PATH MOCK_CURL_TIMEOUT MOCK_CURL_EXIT
 }
+
+# Intercept GitHub repository_dispatch POST (no real network).
+install_dispatch_curl_stub() {
+  _CURL_ORIG_PATH="$PATH"
+  local wrapper_dir
+  wrapper_dir="$(mktemp -d)"
+  REAL_CURL="$(command -v curl)"
+  export REAL_CURL
+  MOCK_DISPATCH_REQUEST_LOG="${MOCK_DISPATCH_REQUEST_LOG:-$(mktemp)}"
+  export MOCK_DISPATCH_REQUEST_LOG
+  MOCK_DISPATCH_STATUS="${MOCK_DISPATCH_STATUS:-204}"
+  export MOCK_DISPATCH_STATUS
+  MOCK_DISPATCH_RESPONSE_BODY="${MOCK_DISPATCH_RESPONSE_BODY:-}"
+  export MOCK_DISPATCH_RESPONSE_BODY
+  cat >"$wrapper_dir/curl" <<'EOF'
+#!/usr/bin/env bash
+if [[ -n "${MOCK_CURL_EXIT:-}" ]]; then
+  echo "mock curl: simulated exit ${MOCK_CURL_EXIT}" >&2
+  exit "$MOCK_CURL_EXIT"
+fi
+if [[ "${MOCK_CURL_TIMEOUT:-}" == "1" ]]; then
+  echo "mock curl: simulated timeout" >&2
+  exit 28
+fi
+args=("$@")
+url=""
+method=""
+body_file=""
+body_inline=""
+out_file=""
+write_out=""
+i=0
+while [[ $i -lt ${#args[@]} ]]; do
+  arg="${args[$i]}"
+  case "$arg" in
+    -X)
+      method="${args[$((i + 1))]}"
+      i=$((i + 2))
+      ;;
+    -d)
+      next="${args[$((i + 1))]}"
+      if [[ -f "$next" ]]; then
+        body_file="$next"
+      else
+        body_inline="$next"
+      fi
+      i=$((i + 2))
+      ;;
+    -o)
+      out_file="${args[$((i + 1))]}"
+      i=$((i + 2))
+      ;;
+    -w)
+      write_out="${args[$((i + 1))]}"
+      i=$((i + 2))
+      ;;
+    http://*|https://*)
+      url="$arg"
+      i=$((i + 1))
+      ;;
+    *)
+      i=$((i + 1))
+      ;;
+  esac
+done
+if [[ "$url" == *"api.github.com/repos/"*/dispatches && "$method" == "POST" ]]; then
+  {
+    echo "URL=$url"
+    echo "METHOD=$method"
+    if [[ -n "$body_file" ]]; then
+      echo "BODY_START"
+      cat "$body_file"
+      echo ""
+      echo "BODY_END"
+    elif [[ -n "$body_inline" ]]; then
+      echo "BODY_START"
+      printf '%s\n' "$body_inline"
+      echo "BODY_END"
+    fi
+  } >"$MOCK_DISPATCH_REQUEST_LOG"
+  if [[ -n "$out_file" ]]; then
+    if [[ -n "${MOCK_DISPATCH_RESPONSE_BODY:-}" ]]; then
+      printf '%s' "$MOCK_DISPATCH_RESPONSE_BODY" >"$out_file"
+    else
+      : >"$out_file"
+    fi
+  fi
+  if [[ -n "$write_out" ]]; then
+    printf '%s' "${MOCK_DISPATCH_STATUS:-204}"
+  fi
+  exit 0
+fi
+exec "$REAL_CURL" "$@"
+EOF
+  chmod +x "$wrapper_dir/curl"
+  CURL_WRAPPER_DIR="$wrapper_dir"
+  export PATH="$wrapper_dir:$PATH"
+}
+
+restore_dispatch_curl_stub() {
+  restore_curl_stub
+  if [[ -n "${MOCK_DISPATCH_REQUEST_LOG:-}" && -f "$MOCK_DISPATCH_REQUEST_LOG" ]]; then
+    rm -f "$MOCK_DISPATCH_REQUEST_LOG"
+  fi
+  unset MOCK_DISPATCH_REQUEST_LOG MOCK_DISPATCH_STATUS MOCK_DISPATCH_RESPONSE_BODY
+}
+
+extract_dispatch_request_body() {
+  local log="${1:?}"
+  awk '/^BODY_START$/{found=1; next} /^BODY_END$/{found=0} found' "$log"
+}
