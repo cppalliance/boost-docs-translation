@@ -155,6 +155,26 @@ EOF
   export PATH="$wrapper_dir:$PATH"
 }
 
+# Prepend a git wrapper that hides --force-if-includes from push -h (simulates
+# a Git in the 2.8–2.29 range: force-with-lease present, force-if-includes not).
+install_git_without_force_if_includes() {
+  local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
+  REAL_GIT="$(command -v git)"
+  export REAL_GIT
+  mkdir -p "$wrapper_dir"
+  cat >"$wrapper_dir/git" <<'EOF'
+#!/usr/bin/env bash
+if [[ "${1:-}" == "push" && "${2:-}" == "-h" ]]; then
+  "$REAL_GIT" push -h 2>&1 | grep -v 'force-if-includes'
+  exit 0
+fi
+exec "$REAL_GIT" "$@"
+EOF
+  chmod +x "$wrapper_dir/git"
+  GIT_WRAPPER_DIR="$wrapper_dir"
+  export PATH="$wrapper_dir:$PATH"
+}
+
 # Prepend a git wrapper that counts fetch invocations and optionally injects concurrent push.
 install_git_fetch_counter() {
   local counter_file="$1"

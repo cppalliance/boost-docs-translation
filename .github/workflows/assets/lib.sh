@@ -206,6 +206,12 @@ git_push_supports_force_with_lease() {
   git push -h 2>&1 | grep -qF 'force-with-lease'
 }
 
+# --force-if-includes (Git 2.30+) makes the safe retry below reject an unmerged
+# remote advance instead of overwriting it.
+git_push_supports_force_if_includes() {
+  git push -h 2>&1 | grep -qF 'force-if-includes'
+}
+
 commit_and_push_translations_branch() {
   local dir="$1" branch="$2" libs_ref="$3" force="${4:-false}"
   local push_rc remote_sha attempt max_attempts=3
@@ -220,11 +226,17 @@ commit_and_push_translations_branch() {
       phase_err "git push --force-with-lease is not supported by this Git installation"
       return 1
     fi
-    # A concurrent advance during the daily run rejects the lease. Fetch so the
-    # local ref reflects the advanced remote, then retry; fail closed once the
-    # attempts are exhausted so a persistent divergence still surfaces.
+    if ! git_push_supports_force_if_includes; then
+      phase_err "git push --force-if-includes is not supported; requires Git 2.30+"
+      return 1
+    fi
+    # A concurrent advance rejects the lease. Fetch so the lease reflects the
+    # advanced remote and retry, but keep --force-if-includes so the retry still
+    # rejects an advance we never integrated. A spurious rejection (remote
+    # unchanged from our base) retries to success; a real concurrent commit
+    # fails closed rather than being silently overwritten.
     for (( attempt=1; attempt<=max_attempts; attempt++ )); do
-      if git -C "$dir" push --force-with-lease origin "$branch"; then
+      if git -C "$dir" push --force-with-lease --force-if-includes origin "$branch"; then
         return 0
       else
         push_rc=$?

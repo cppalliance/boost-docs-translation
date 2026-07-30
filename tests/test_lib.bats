@@ -345,7 +345,7 @@ teardown() {
   git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
 }
 
-@test "finalize_translations_local: retries and succeeds after a transient lease rejection" {
+@test "finalize_translations_local: does not overwrite a concurrent advance (force-if-includes)" {
   # shellcheck source=tests/helpers/git_fixtures.bash
   source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
   init_git_fixture_root
@@ -358,7 +358,9 @@ teardown() {
   UPDATES=("algorithm")
   update_translations_submodule() { :; }
 
-  # Advance the remote only on the first push; the retry (after a fetch) lands.
+  # One concurrent advance: the fetch updates the lease baseline, but
+  # --force-if-includes still rejects the retry because that advance was never
+  # integrated, so the run fails closed instead of overwriting it.
   install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance" 1
 
   set +e
@@ -366,12 +368,10 @@ teardown() {
   rc=$?
   set -e
 
-  [ "$rc" -eq 0 ]
-  # our branch is the remote tip, and the transient advance was overwritten
-  local_sha=$(git -C "$trans_dir" rev-parse "${LOCAL_BRANCH_PREFIX}en")
+  [ "$rc" -ne 0 ]
+  # the concurrent advance is still the remote tip, not overwritten by our push
   remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
-  [ "$local_sha" = "$remote_sha" ]
-  ! git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
+  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
 }
 
 @test "finalize_translations_local: fails after force-with-lease retries are exhausted" {
@@ -430,6 +430,32 @@ teardown() {
   [ "$rc" -ne 0 ]
   grep -q "force-with-lease is not supported" "$stderr_file"
   grep -q "not supported by this Git installation" "$stderr_file"
+}
+
+@test "commit_and_push_translations_branch: clear error when force-if-includes unsupported" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+  git -C "$trans_dir" checkout "${LOCAL_BRANCH_PREFIX}en"
+
+  # force-with-lease present, force-if-includes hidden (pre-2.30 Git).
+  install_git_without_force_if_includes
+
+  local stderr_file="$BATS_TMPDIR/push-no-includes-stderr"
+  set +e
+  commit_and_push_translations_branch "$trans_dir" "${LOCAL_BRANCH_PREFIX}en" "develop" true \
+    2>"$stderr_file"
+  rc=$?
+  set -e
+
+  [ "$rc" -ne 0 ]
+  grep -q "force-if-includes is not supported" "$stderr_file"
+  grep -q "requires Git 2.30+" "$stderr_file"
 }
 
 @test "begin_phase and end_phase: emit group markers and track CURRENT_PHASE" {
