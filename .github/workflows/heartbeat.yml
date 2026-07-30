@@ -1,0 +1,71 @@
+# Missed-run heartbeat for the daily "Sync translation" cron.
+#
+# A failed sync run surfaces on its own, but a run that never fires is silent:
+# GitHub can drop scheduled runs, auto-disable the workflow after repo inactivity,
+# or the schedule can be removed. This workflow runs on its own schedule and
+# alerts when the last *successful* scheduled sync is older than a threshold, so a
+# silently missed run is caught. It does not depend on sync-translation.yml
+# running, so it still fires once that workflow has stopped.
+
+name: Sync heartbeat
+
+on:
+  schedule:
+    # Noon UTC, offset from the sync's 00:00 run so a healthy day reads ~12h old.
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check-heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (master)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Check the last successful scheduled sync
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/lib.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+
+          begin_phase "$PHASE_HEARTBEAT" "Check daily sync heartbeat"
+          trap '[[ -n "$CURRENT_PHASE" ]] && end_phase' EXIT ERR
+
+          last_ts="$(gh run list \
+            --repo "$GITHUB_REPOSITORY" \
+            --workflow sync-translation.yml \
+            --event schedule \
+            --status success \
+            --limit 1 \
+            --json updatedAt \
+            --jq '.[0].updatedAt // ""')"
+
+          last_epoch=""
+          if [[ -n "$last_ts" ]]; then
+            last_epoch="$(date -d "$last_ts" +%s)"
+          fi
+          now_epoch="$(date +%s)"
+          max_age_seconds=$(( HEARTBEAT_MAX_AGE_HOURS * 3600 ))
+
+          if heartbeat_run_is_stale "$last_epoch" "$now_epoch" "$max_age_seconds"; then
+            # Interim alert: fail the job. Swap this for the shared notification
+            # channel once the failure-notification work provides one.
+            last_desc="${last_ts:-none on record}"
+            echo "::error::Daily sync heartbeat: last successful scheduled run is stale (last=${last_desc}, threshold=${HEARTBEAT_MAX_AGE_HOURS}h). The scheduled sync may have stopped." >&2
+            end_phase
+            exit 1
+          fi
+
+          echo "Heartbeat healthy: last successful scheduled sync at ${last_ts} (within ${HEARTBEAT_MAX_AGE_HOURS}h)." >&2
+          end_phase

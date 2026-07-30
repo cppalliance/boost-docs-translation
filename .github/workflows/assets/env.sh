@@ -15,6 +15,11 @@ if [[ -z "${_ENV_SH_LOADED:-}" ]]; then
   readonly PHASE_TRIGGER_WEBLATE="trigger-weblate"
   readonly PHASE_DISCOVER="discover"
   readonly PHASE_SYNC_POINTERS="sync-pointers"
+  readonly PHASE_HEARTBEAT="heartbeat"
+
+  # Missed-run heartbeat: alert when the last successful scheduled sync is older
+  # than this. Margin above the 24h cron cadence so a delayed run does not trip the alert.
+  readonly HEARTBEAT_MAX_AGE_HOURS=30
 
   # start-translation submodule mode (START_PHASE env).
   readonly START_PHASE_MIRRORS="mirrors"
