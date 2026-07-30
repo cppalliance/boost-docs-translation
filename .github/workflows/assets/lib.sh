@@ -559,3 +559,12 @@ validate_secrets() {
     _require_nonempty WEBLATE_TOKEN "WEBLATE_TOKEN secret is not set."
   fi
 }
+
+# True (exit 0) when the last successful scheduled sync is missing or older than
+# max_age_seconds, i.e. the daily run has silently stopped. Pure function; the
+# heartbeat workflow supplies the timestamps from the GitHub API.
+heartbeat_run_is_stale() {
+  local last_success_epoch="$1" now_epoch="$2" max_age_seconds="$3"
+  [[ -z "$last_success_epoch" || "$last_success_epoch" == "0" ]] && return 0
+  (( now_epoch - last_success_epoch > max_age_seconds ))
+}

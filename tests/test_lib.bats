@@ -568,3 +568,20 @@ teardown() {
   [[ "$output" == *"Failed — processing error (1): sync_failed"* ]]
   [[ "$output" != *"processing error (2)"* ]]
 }
+
+@test "heartbeat_run_is_stale: stale when no successful run is on record" {
+  heartbeat_run_is_stale "" 200000 100000
+  heartbeat_run_is_stale "0" 200000 100000
+}
+
+@test "heartbeat_run_is_stale: stale when the last success is older than the threshold" {
+  heartbeat_run_is_stale 50000 200000 100000
+}
+
+@test "heartbeat_run_is_stale: fresh when the last success is within the threshold" {
+  ! heartbeat_run_is_stale 150000 200000 100000
+}
+
+@test "heartbeat_run_is_stale: at the threshold boundary is still fresh (strict older-than)" {
+  ! heartbeat_run_is_stale 100000 200000 100000
+}
