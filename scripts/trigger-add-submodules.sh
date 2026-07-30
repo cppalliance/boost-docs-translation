@@ -81,6 +81,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Trim leading/trailing whitespace; reject empty or whitespace-only values.
+SUBMODULES="${SUBMODULES#"${SUBMODULES%%[![:space:]]*}"}"
+SUBMODULES="${SUBMODULES%"${SUBMODULES##*[![:space:]]}"}"
+
 if [[ -z "$SUBMODULES" ]]; then
   echo "error: --submodules is required (comma-separated library names)" >&2
   usage >&2

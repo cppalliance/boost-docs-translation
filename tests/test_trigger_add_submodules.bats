@@ -31,6 +31,13 @@ teardown() {
   [[ "$output" == *"Usage:"* ]]
 }
 
+@test "trigger-add-submodules: whitespace-only --submodules errors with usage" {
+  run "$SCRIPT" --repo owner/repo --submodules '   '
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"error: --submodules is required"* ]]
+  [[ "$output" == *"Usage:"* ]]
+}
+
 @test "trigger-add-submodules: explicit --submodules dispatches payload" {
   install_dispatch_curl_stub
   run "$SCRIPT" --repo owner/repo --token fake-token --submodules 'a, b'
