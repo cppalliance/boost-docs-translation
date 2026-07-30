@@ -129,6 +129,21 @@ EOF
   process_submodule_list stub_processor ok ok
 }
 
+@test "process_submodule_list: buckets record_submodule_update failures as fatal" {
+  stub_processor() { return 0; }
+  record_submodule_update() { return 1; }
+
+  set +e
+  process_submodule_list stub_processor bad_name
+  status=$?
+  set -e
+  [ "$status" -eq 0 ]
+  [ "$submodule_fatal" -eq 1 ]
+  [ "${#SUBMODULE_FATAL[@]}" -eq 1 ]
+  [ "${SUBMODULE_FATAL[0]}" = "bad_name" ]
+  [ "${#UPDATES[@]}" -eq 0 ]
+}
+
 @test "combine_batch_and_finalize_rc: zero when no failures" {
   submodule_fatal=0
   run combine_batch_and_finalize_rc 0

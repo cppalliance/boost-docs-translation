@@ -111,7 +111,10 @@ process_submodule_list() {
     sub="${names[$i]}"
     echo "[$(( i + 1 ))/$total] $sub ..." >&2
     if "$processor" "$sub"; then
-      record_submodule_update "$sub" || true
+      if ! record_submodule_update "$sub"; then
+        record_submodule_fatal "$sub"
+        submodule_fatal=$((submodule_fatal + 1))
+      fi
     else
       rc=$?
       if [[ $rc -eq 2 ]]; then
