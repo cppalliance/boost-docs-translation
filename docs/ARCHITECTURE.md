@@ -224,10 +224,16 @@ On partial submodule failure, **`sync-mirrors`** still finalizes successful subm
 pointers in the super-repo via **`finalize_translations_master`**, then exits non-zero
 when **`combine_batch_and_finalize_rc`** reports failure. In that case it does **not**
 set the job output **`updated_submodules`** (only written when **`exit_rc == 0`**), so
-**`start-local`** is skipped: its **`if:`** requires a non-empty **`updated_submodules`**
-JSON array. Operators may expect partial mirror success to still hand off per-language
-Weblate work, but the workflow gate requires **full** **`sync-mirrors`** success before
-any **`start-local`** matrix job runs.
+**`start-local`** is skipped: its **`if:`** requires **`sync-mirrors`** job success.
+Operators may expect partial mirror success to still hand off per-language Weblate work,
+but the workflow gate requires **full** **`sync-mirrors`** success before any
+**`start-local`** matrix job runs.
+
+**Precondition guards.** Zero **`libs/`** entries in this repo’s **`.gitmodules`** is a
+fatal error in **`sync-mirrors`** (`Run add-submodules first.`). When **`sync-mirrors`**
+succeeds but **`updated_submodules`** is an empty JSON array (all submodules non-fatally
+skipped), **`start-local`** runs and exits non-zero with a distinct empty-handoff message
+rather than silently succeeding.
 
 ### 6.4 Related conventions (not the batch 0/1/2 contract)
 

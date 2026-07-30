@@ -36,6 +36,43 @@ EOF
   [ "$output" = "json" ]
 }
 
+@test "require_libs_submodules_in_gitmodules: succeeds when libs/ paths exist" {
+  local gitmodules i name
+  gitmodules="$(mktemp)"
+  for i in {1..256}; do
+    name="lib${i}"
+    cat >>"$gitmodules" <<EOF
+[submodule "libs/${name}"]
+	path = libs/${name}
+EOF
+  done
+  run bash -c '
+    set -o pipefail
+    # shellcheck source=tests/helpers/common.bash
+    source "$1/helpers/common.bash"
+    load_submodule_ops
+    require_libs_submodules_in_gitmodules "$2"
+  ' _ "$BATS_TEST_DIRNAME" "$gitmodules"
+  rm -f "$gitmodules"
+  [ "$status" -eq 0 ]
+}
+
+@test "require_libs_submodules_in_gitmodules: fails when no libs/ paths" {
+  local gitmodules
+  gitmodules="$(mktemp)"
+  : >"$gitmodules"
+  run bash -c '
+    set -o pipefail
+    # shellcheck source=tests/helpers/common.bash
+    source "$1/helpers/common.bash"
+    load_submodule_ops
+    require_libs_submodules_in_gitmodules "$2"
+  ' _ "$BATS_TEST_DIRNAME" "$gitmodules"
+  rm -f "$gitmodules"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"Run add-submodules first."* ]]
+}
+
 @test "resolve_add_submodules_names: uses SUBMODULES when set" {
   SUBMODULES="algorithm, system"
   LIBS_REF="develop"
@@ -93,6 +130,21 @@ EOF
 @test "process_submodule_list: returns 0 when no fatal failures" {
   stub_processor() { return 0; }
   process_submodule_list stub_processor ok ok
+}
+
+@test "process_submodule_list: buckets record_submodule_update failures as fatal" {
+  stub_processor() { return 0; }
+  record_submodule_update() { return 1; }
+
+  set +e
+  process_submodule_list stub_processor bad_name
+  status=$?
+  set -e
+  [ "$status" -eq 0 ]
+  [ "$submodule_fatal" -eq 1 ]
+  [ "${#SUBMODULE_FATAL[@]}" -eq 1 ]
+  [ "${SUBMODULE_FATAL[0]}" = "bad_name" ]
+  [ "${#UPDATES[@]}" -eq 0 ]
 }
 
 @test "combine_batch_and_finalize_rc: zero when no failures" {

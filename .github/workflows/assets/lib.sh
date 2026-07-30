@@ -154,18 +154,19 @@ ensure_local_branch_in_translations() {
   local branch="${LOCAL_BRANCH_PREFIX}${lang_code}"
   if git -C "$dir" ls-remote --exit-code --heads origin "$branch" &>/dev/null; then
     echo "  Branch $branch already exists in $TRANSLATIONS_REPO." >&2
-  else
-    echo "  Creating branch $branch in $TRANSLATIONS_REPO from $MASTER_BRANCH..." >&2
-    git -C "$dir" checkout -B "$MASTER_BRANCH" "origin/$MASTER_BRANCH"
-    git -C "$dir" checkout -b "$branch"
-    rm -rf "$dir/libs" "$dir/.gitmodules"
-    git -C "$dir" rm -rf --cached libs .gitmodules 2>/dev/null || true
-    if ! git -C "$dir" diff --cached --quiet; then
-      git -C "$dir" commit -m "Init $branch"
-    fi
-    git -C "$dir" push -u origin "$branch"
-    echo "  Created branch $branch." >&2
+    return 0
   fi
+  echo "  Creating branch $branch in $TRANSLATIONS_REPO from $MASTER_BRANCH..." >&2
+  git -C "$dir" checkout -B "$MASTER_BRANCH" "origin/$MASTER_BRANCH" || return 1
+  git -C "$dir" checkout -b "$branch" || return 1
+  rm -rf "$dir/libs" "$dir/.gitmodules"
+  git -C "$dir" rm -rf --cached libs .gitmodules 2>/dev/null || true
+  if ! git -C "$dir" diff --cached --quiet; then
+    git -C "$dir" commit -m "Init $branch" || return 1
+  fi
+  git -C "$dir" push -u origin "$branch" || return 1
+  echo "  Created branch $branch." >&2
+  return 0
 }
 
 ensure_translations_cloned() {
