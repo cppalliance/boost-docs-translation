@@ -42,14 +42,16 @@ jobs:
           begin_phase "$PHASE_HEARTBEAT" "Check daily sync heartbeat"
           trap '[[ -n "$CURRENT_PHASE" ]] && end_phase' EXIT ERR
 
+          # createdAt is when the run was scheduled; updatedAt moves when an old
+          # run is rerun, which would make a stopped schedule look healthy.
           last_ts="$(gh run list \
             --repo "$GITHUB_REPOSITORY" \
             --workflow sync-translation.yml \
             --event schedule \
             --status success \
             --limit 1 \
-            --json updatedAt \
-            --jq '.[0].updatedAt // ""')"
+            --json createdAt \
+            --jq '.[0].createdAt // ""')"
 
           last_epoch=""
           if [[ -n "$last_ts" ]]; then
