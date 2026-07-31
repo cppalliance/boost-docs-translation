@@ -202,14 +202,23 @@ update_translations_submodule() {
   fi
 }
 
+# `git push -h` exits 129, so capture the help text first (|| true) and grep it
+# separately. Piping straight into grep would fail the probe under `set -o
+# pipefail` (which the workflows enable) even when the flag is present.
+git_push_help_mentions() {
+  local help
+  help="$(git push -h 2>&1 || true)"
+  grep -qF "$1" <<<"$help"
+}
+
 git_push_supports_force_with_lease() {
-  git push -h 2>&1 | grep -qF 'force-with-lease'
+  git_push_help_mentions 'force-with-lease'
 }
 
 # --force-if-includes (Git 2.30+) makes the safe retry below reject an unmerged
 # remote advance instead of overwriting it.
 git_push_supports_force_if_includes() {
-  git push -h 2>&1 | grep -qF 'force-if-includes'
+  git_push_help_mentions 'force-if-includes'
 }
 
 commit_and_push_translations_branch() {

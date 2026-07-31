@@ -363,12 +363,14 @@ teardown() {
   # integrated, so the run fails closed instead of overwriting it.
   install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance" 1
 
+  local stderr_file="$BATS_TMPDIR/finalize-no-overwrite-stderr"
   set +e
-  finalize_translations_local "$trans_dir" "develop" "en" 2>/dev/null
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
   rc=$?
   set -e
 
   [ "$rc" -ne 0 ]
+  grep -q "force-with-lease push rejected" "$stderr_file"
   # the concurrent advance is still the remote tip, not overwritten by our push
   remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
   git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
@@ -450,11 +452,13 @@ teardown() {
   install_git_without_force_with_lease
 
   local stderr_file="$BATS_TMPDIR/push-unsupported-stderr"
-  set +e
+  # pipefail is on in the workflows; the probe must still work when `git push -h`
+  # exits 129 (the shim mirrors that).
+  set +e -o pipefail
   commit_and_push_translations_branch "$trans_dir" "${LOCAL_BRANCH_PREFIX}en" "develop" true \
     2>"$stderr_file"
   rc=$?
-  set -e
+  set -e +o pipefail
 
   [ "$rc" -ne 0 ]
   grep -q "force-with-lease is not supported" "$stderr_file"
@@ -476,15 +480,25 @@ teardown() {
   install_git_without_force_if_includes
 
   local stderr_file="$BATS_TMPDIR/push-no-includes-stderr"
-  set +e
+  set +e -o pipefail
   commit_and_push_translations_branch "$trans_dir" "${LOCAL_BRANCH_PREFIX}en" "develop" true \
     2>"$stderr_file"
   rc=$?
-  set -e
+  set -e +o pipefail
 
   [ "$rc" -ne 0 ]
   grep -q "force-if-includes is not supported" "$stderr_file"
   grep -q "requires Git 2.30+" "$stderr_file"
+}
+
+@test "git_push_supports_* probes are pipefail-safe with real git" {
+  # Modern git supports both flags, but `git push -h` exits 129; piped into grep
+  # that fails under pipefail even when the flag is present. The probes must
+  # still report supported.
+  set -o pipefail
+  git_push_supports_force_with_lease
+  git_push_supports_force_if_includes
+  set +o pipefail
 }
 
 @test "begin_phase and end_phase: emit group markers and track CURRENT_PHASE" {

@@ -138,8 +138,9 @@ jobs:
                      2>/dev/null | sed 's/^[^ ]* //')
 
           if [[ $updated -eq 1 ]] && ! git diff --staged --quiet; then
-            git commit -m "Update libs submodules ($branch)"
-            git push --force-with-lease origin "HEAD:$branch"
+            # Commit + push through the shared helper so this path gets the same
+            # bounded retry and --force-if-includes safety as the finalize flow.
+            commit_and_push_translations_branch "$GITHUB_WORKSPACE" "$branch" "$branch" true
             echo "  Pushed to origin/$branch" >&2
           else
             echo "  No pointer changes for $branch." >&2

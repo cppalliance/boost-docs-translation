@@ -88,9 +88,10 @@ push_commit_to_remote_branch() {
 
 # A git wrapper that injects a concurrent advance before each force-with-lease
 # push, so the lease is rejected. The optional 4th arg caps how many pushes get a
-# fresh advance (0 = every push, the default); pass 1 to simulate a transient
-# rejection that a retry then clears. Pass 1 as the 5th arg to also fail every
-# branch-specific `git fetch origin <branch>` (the inter-attempt retry fetch).
+# fresh advance (0 = every push, the default); pass 1 to inject a single real
+# concurrent advance that the retry still refuses to overwrite. Pass 1 as the
+# 5th arg to also fail every branch-specific `git fetch origin <branch>` (the
+# inter-attempt retry fetch).
 install_git_push_pre_hook() {
   local bare="$1" branch="$2" message="${3:-concurrent advance}" max_injections="${4:-0}" fail_branch_fetch="${5:-0}"
   local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
@@ -138,21 +139,22 @@ restore_git_push_pre_hook() {
     rm -rf "$GIT_WRAPPER_DIR"
     unset GIT_WRAPPER_DIR REAL_GIT
     unset GIT_HOOK_BARE_REMOTE GIT_HOOK_BRANCH GIT_HOOK_MESSAGE GIT_FETCH_COUNTER_FILE
-    unset GIT_HOOK_MAX_INJECTIONS GIT_HOOK_INJECT_COUNTER GIT_HOOK_FAIL_BRANCH_FETCH
+    unset GIT_HOOK_MAX_INJECTIONS GIT_HOOK_INJECT_COUNTER GIT_HOOK_FAIL_BRANCH_FETCH GIT_HIDE_PUSH_FLAG
   fi
 }
 
-# Prepend a git wrapper that hides --force-with-lease from push -h (simulates pre-2.8 git).
-install_git_without_force_with_lease() {
+# Prepend a git wrapper that hides one flag from `git push -h` output (which
+# exits 129) to simulate a git that predates that flag.
+install_git_without_flag() {
   local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
   REAL_GIT="$(command -v git)"
-  export REAL_GIT
+  export REAL_GIT GIT_HIDE_PUSH_FLAG="$1"
   mkdir -p "$wrapper_dir"
   cat >"$wrapper_dir/git" <<'EOF'
 #!/usr/bin/env bash
 if [[ "${1:-}" == "push" && "${2:-}" == "-h" ]]; then
-  "$REAL_GIT" push -h 2>&1 | grep -v 'force-with-lease'
-  exit 0
+  "$REAL_GIT" push -h 2>&1 | grep -vF "$GIT_HIDE_PUSH_FLAG"
+  exit 129  # match real `git push -h`
 fi
 exec "$REAL_GIT" "$@"
 EOF
@@ -161,25 +163,10 @@ EOF
   export PATH="$wrapper_dir:$PATH"
 }
 
-# Prepend a git wrapper that hides --force-if-includes from push -h (simulates
-# a Git in the 2.8–2.29 range: force-with-lease present, force-if-includes not).
-install_git_without_force_if_includes() {
-  local wrapper_dir="$GIT_FIXTURE_ROOT/bin"
-  REAL_GIT="$(command -v git)"
-  export REAL_GIT
-  mkdir -p "$wrapper_dir"
-  cat >"$wrapper_dir/git" <<'EOF'
-#!/usr/bin/env bash
-if [[ "${1:-}" == "push" && "${2:-}" == "-h" ]]; then
-  "$REAL_GIT" push -h 2>&1 | grep -v 'force-if-includes'
-  exit 0
-fi
-exec "$REAL_GIT" "$@"
-EOF
-  chmod +x "$wrapper_dir/git"
-  GIT_WRAPPER_DIR="$wrapper_dir"
-  export PATH="$wrapper_dir:$PATH"
-}
+# simulates pre-2.8 git (no force-with-lease)
+install_git_without_force_with_lease() { install_git_without_flag 'force-with-lease'; }
+# simulates a git from 2.8 to 2.29 (force-with-lease present, force-if-includes not)
+install_git_without_force_if_includes() { install_git_without_flag 'force-if-includes'; }
 
 # Prepend a git wrapper that counts fetch invocations and optionally injects concurrent push.
 install_git_fetch_counter() {
