@@ -8,9 +8,11 @@ DEFAULT_REPO="cppalliance/boost-docs-translation"
 DEFAULT_VERSION="boost-1.90.0"
 
 infer_repo_from_git() {
-  local url root o r
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-  url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 1
+  local url="${1:-}" root o r
+  if [[ -z "$url" ]]; then
+    root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+    url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 1
+  fi
   if [[ "$url" =~ github\.com[:/]([^/]+)/([^[:space:]]+) ]]; then
     o="${BASH_REMATCH[1]}"
     r="${BASH_REMATCH[2]}"
@@ -44,6 +46,9 @@ resolve_trigger_repo() {
   return 1
 }
 
+# Client-side dispatch auth: prefers GH_TOKEN, then GITHUB_TOKEN. Workflow jobs use a
+# different mapping — SYNC_TOKEN PAT in GITHUB_TOKEN; ephemeral Actions token in GH_TOKEN
+# (e.g. heartbeat.yml). The names are not interchangeable across those two contexts.
 resolve_trigger_token() {
   local explicit="${1:-}"
   local token="${explicit:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
@@ -67,26 +72,21 @@ build_dispatch_json() {
   local event_type="$1"
   shift
   if command -v jq >/dev/null 2>&1; then
-    local json_pairs='[]' key val
-    while [[ $# -gt 0 ]]; do
-      key="$1"
-      val="$2"
-      shift 2
-      json_pairs="$(jq -n --argjson arr "$json_pairs" --arg k "$key" --arg v "$val" \
-        '$arr + [{key: $k, value: $v}]')"
-    done
-    jq -n --arg event_type "$event_type" --argjson pairs "$json_pairs" \
+    jq -n --arg event_type "$event_type" --args \
       '{
         event_type: $event_type,
         client_payload: (
-          {}
-          | reduce pairs[] as $p (
-              .;
-              if ($p.value | length) > 0 then . + {($p.key): $p.value} else . end
-            )
+          reduce range(0; $ARGS.positional | length; 2) as $i (
+            {};
+            if ($ARGS.positional[$i + 1] | length) > 0
+            then . + {($ARGS.positional[$i]): $ARGS.positional[$i + 1]}
+            else .
+            end
+          )
         )
-      }'
-    return 0
+      }' \
+      "$@"
+    return $?
   fi
   local py=""
   command -v python3 >/dev/null 2>&1 && py="python3"
@@ -102,7 +102,7 @@ for i in range(0,len(pairs),2):
         d[k]=v
 print(json.dumps({"event_type":et,"client_payload":d}))' \
       "$event_type" "$@"
-    return 0
+    return $?
   fi
   return 1
 }

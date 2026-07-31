@@ -80,3 +80,7 @@ setup() {
 @test "GETTING-STARTED.md documents dispatch-order guard" {
   grep -q 'add-submodules first' "$DOC"
 }
+
+@test "GETTING-STARTED.md does not document DEFAULT_SUBMODULES script default" {
+  ! grep -q 'DEFAULT_SUBMODULES' "$DOC"
+}
