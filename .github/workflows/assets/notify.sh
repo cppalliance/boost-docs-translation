@@ -14,7 +14,7 @@ github_actions_url() {
 # Return workflow run URL for the given run id (defaults to GITHUB_RUN_ID).
 workflow_run_url() {
   local run_id
-  run_id="$(resolve_run_id "$1")"
+  run_id="$(resolve_run_id "${1:-}")"
   github_actions_url "runs/${run_id}"
 }
 
@@ -72,7 +72,7 @@ send_slack_notification() {
 # Fetch failed jobs for a workflow run and format summary lines.
 collect_workflow_failed_jobs_summary() {
   local run_id
-  run_id="$(resolve_run_id "$1")"
+  run_id="$(resolve_run_id "${1:-}")"
   gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json jobs \
     | format_failed_jobs_summary
 }
@@ -80,10 +80,10 @@ collect_workflow_failed_jobs_summary() {
 # Notify Slack about sync-translation workflow failures (discover or sync-local).
 notify_sync_translation_failure() {
   local run_id
-  run_id="$(resolve_run_id "$1")"
+  run_id="$(resolve_run_id "${1:-}")"
   local run_url summary payload
   run_url="$(workflow_run_url "$run_id")"
-  summary="$(collect_workflow_failed_jobs_summary "$run_id")"
+  summary="$(collect_workflow_failed_jobs_summary "$run_id")" || summary="(details unavailable)"
   payload="$(build_slack_failure_payload "Sync translation failed" "$run_url" "$summary" "")"
   send_slack_notification "$payload"
 }

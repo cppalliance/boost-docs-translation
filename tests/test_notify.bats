@@ -10,6 +10,9 @@ teardown() {
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
   restore_slack_curl_stub
+  # shellcheck source=tests/helpers/mock_gh.bash
+  source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"
+  restore_mock_gh
 }
 
 @test "extract_sync_local_lang_from_job_name: parses matrix lang" {
@@ -89,14 +92,64 @@ teardown() {
   [ "$output" = "https://github.example/myorg/myrepo/actions/runs/42" ]
 }
 
+@test "notify_sync_translation_failure: no-arg call posts Slack under set -u" {
+  # shellcheck source=tests/helpers/http_mock.bash
+  source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
+  install_slack_curl_stub
+  # shellcheck source=tests/helpers/mock_gh.bash
+  source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"
+  install_mock_gh
+  reset_mock_gh
+  export MOCK_RUN_VIEW_JSON='{"jobs":[{"name":"discover","conclusion":"failure"}]}'
+  export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T/B/x"
+  export GITHUB_REPOSITORY="myorg/myrepo"
+  export GITHUB_RUN_ID="4242"
+  run notify_sync_translation_failure
+  [ "$status" -eq 0 ]
+  grep -q 'Sync translation failed' "$MOCK_SLACK_REQUEST_LOG"
+  grep -q 'actions/runs/4242' "$MOCK_SLACK_REQUEST_LOG"
+  grep -q 'discover' "$MOCK_SLACK_REQUEST_LOG"
+}
+
+@test "notify_sync_translation_failure: posts alert when gh run view fails" {
+  # shellcheck source=tests/helpers/http_mock.bash
+  source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
+  install_slack_curl_stub
+  # shellcheck source=tests/helpers/mock_gh.bash
+  source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"
+  install_mock_gh
+  reset_mock_gh
+  export MOCK_RUN_VIEW_EXIT=1
+  export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T/B/x"
+  export GITHUB_REPOSITORY="myorg/myrepo"
+  export GITHUB_RUN_ID="99"
+  run notify_sync_translation_failure
+  [ "$status" -eq 0 ]
+  grep -q 'Sync translation failed' "$MOCK_SLACK_REQUEST_LOG"
+  grep -q 'details unavailable' "$MOCK_SLACK_REQUEST_LOG"
+}
+
 @test "notify_heartbeat_stale: builds payload with threshold detail" {
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
   install_slack_curl_stub
   export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T/B/x"
+  export GITHUB_RUN_ID="42"
   run notify_heartbeat_stale "2026-01-01T00:00:00Z"
   [ "$status" -eq 0 ]
   grep -q 'Sync heartbeat alert' "$MOCK_SLACK_REQUEST_LOG"
+  grep -q 'last=2026-01-01T00:00:00Z' "$MOCK_SLACK_REQUEST_LOG"
   grep -q 'threshold=30h' "$MOCK_SLACK_REQUEST_LOG"
+  grep -q 'actions/runs/42' "$MOCK_SLACK_REQUEST_LOG"
   grep -q 'sync-translation.yml' "$MOCK_SLACK_REQUEST_LOG"
+}
+
+@test "notify_heartbeat_stale: empty timestamp uses none on record" {
+  # shellcheck source=tests/helpers/http_mock.bash
+  source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
+  install_slack_curl_stub
+  export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/T/B/x"
+  run notify_heartbeat_stale ""
+  [ "$status" -eq 0 ]
+  grep -q 'last=none on record' "$MOCK_SLACK_REQUEST_LOG"
 }

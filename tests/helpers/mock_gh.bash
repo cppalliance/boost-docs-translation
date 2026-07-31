@@ -60,6 +60,19 @@ case "$cmd" in
       exit "${MOCK_PR_LIST_EXIT:-0}"
     fi
     ;;
+  run)
+    if [[ "${1:-}" == "view" ]]; then
+      if [[ "${MOCK_RUN_VIEW_EXIT:-0}" -ne 0 ]]; then
+        exit "${MOCK_RUN_VIEW_EXIT}"
+      fi
+      if [[ -n "${MOCK_RUN_VIEW_JSON:-}" ]]; then
+        printf '%s\n' "$MOCK_RUN_VIEW_JSON"
+      else
+        printf '%s\n' '{"jobs":[]}'
+      fi
+      exit 0
+    fi
+    ;;
 esac
 
 echo "mock gh: unhandled invocation: gh $*" >&2
@@ -80,13 +93,16 @@ restore_mock_gh() {
   unset MOCK_REPO_VIEW_EXIT MOCK_LIBRARIES_FIXTURE MOCK_GH_API_EXIT
   unset MOCK_REPO_CREATE_EXIT MOCK_GH_PATCH_LOG MOCK_GH_PATCH_EXIT
   unset MOCK_PR_LIST_STDOUT MOCK_PR_LIST_STDERR MOCK_PR_LIST_EXIT
+  unset MOCK_RUN_VIEW_EXIT MOCK_RUN_VIEW_JSON
 }
 
 reset_mock_gh() {
   export MOCK_REPO_VIEW_EXIT=0
   export MOCK_GH_PATCH_EXIT=0
+  export MOCK_RUN_VIEW_EXIT=0
   unset MOCK_LIBRARIES_FIXTURE MOCK_GH_API_EXIT MOCK_REPO_CREATE_EXIT
   unset MOCK_PR_LIST_STDOUT MOCK_PR_LIST_STDERR MOCK_PR_LIST_EXIT
+  unset MOCK_RUN_VIEW_JSON
   export MOCK_PR_LIST_EXIT=0
   if [[ -n "${MOCK_GH_DIR:-}" ]]; then
     MOCK_GH_PATCH_LOG="$MOCK_GH_DIR/gh-patch.log"

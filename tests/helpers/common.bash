@@ -44,6 +44,7 @@ load_submodule_ops() {
 load_notify() {
   load_env
   export GITHUB_RUN_ID="${GITHUB_RUN_ID:-12345}"
+  set -euo pipefail
   # shellcheck source=/dev/null
   source "$ASSETS_DIR/notify.sh"
 }
