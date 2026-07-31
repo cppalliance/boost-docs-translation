@@ -56,7 +56,8 @@ send_slack_notification() {
     echo "error: SLACK_WEBHOOK_URL secret is not set." >&2
     return 1
   fi
-  curl -fsS -X POST -H 'Content-Type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
+  curl -fsS --connect-timeout 10 --max-time 30 \
+    -X POST -H 'Content-Type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
 }
 
 # Fetch failed jobs for a workflow run and format summary lines.

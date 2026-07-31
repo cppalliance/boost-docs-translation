@@ -158,6 +158,7 @@ jobs:
       (needs.discover.result == 'failure' || needs.sync-local.result == 'failure')
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       actions: read
     steps:
       - name: Checkout repository (master)
