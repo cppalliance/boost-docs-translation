@@ -55,10 +55,11 @@ Configure these on the translations repository **before** dispatching any workfl
 | Secret   | `SYNC_TOKEN`     | [README § Required secrets](../README.md#required-secrets) |
 | Secret   | `WEBLATE_URL`    | [README § Required secrets](../README.md#required-secrets) |
 | Secret   | `WEBLATE_TOKEN`  | [README § Required secrets](../README.md#required-secrets) |
+| Secret   | `SLACK_WEBHOOK_URL` | [README § Required secrets](../README.md#required-secrets) — Slack incoming webhook for `sync-translation` failure and `heartbeat` stale-sync alerts |
 | Variable | `LANG_CODES`     | [README § Repository variables](../README.md#repository-variables) |
 | Variable | `SUBMODULES_ORG` | [README § Repository variables](../README.md#repository-variables) |
 
-`SYNC_TOKEN`, `WEBLATE_URL`, and `WEBLATE_TOKEN` are required secrets;
+`SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, and `SLACK_WEBHOOK_URL` are required secrets;
 `LANG_CODES` and optional `SUBMODULES_ORG` are repository variables. See the
 linked README sections for scope, format, and which workflows consume each value.
 

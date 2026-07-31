@@ -6,6 +6,8 @@
 # alerts when the last *successful* scheduled sync is older than a threshold, so a
 # silently missed run is caught. It does not depend on sync-translation.yml
 # running, so it still fires once that workflow has stopped.
+#
+# Required secret: SLACK_WEBHOOK_URL — Slack incoming webhook for stale-heartbeat alerts.
 
 name: Sync heartbeat
 
@@ -31,6 +33,7 @@ jobs:
       - name: Check the last successful scheduled sync
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           set -euo pipefail
 
@@ -38,6 +41,8 @@ jobs:
           source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
           # shellcheck source=assets/lib.sh
           source "$GITHUB_WORKSPACE/.github/workflows/assets/lib.sh"
+          # shellcheck source=assets/notify.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/notify.sh"
 
           begin_phase "$PHASE_HEARTBEAT" "Check daily sync heartbeat"
           trap '[[ -n "$CURRENT_PHASE" ]] && end_phase' EXIT ERR
@@ -61,10 +66,9 @@ jobs:
           max_age_seconds=$(( HEARTBEAT_MAX_AGE_HOURS * 3600 ))
 
           if heartbeat_run_is_stale "$last_epoch" "$now_epoch" "$max_age_seconds"; then
-            # Interim alert: fail the job. Swap this for the shared notification
-            # channel once the failure-notification work provides one.
             last_desc="${last_ts:-none on record}"
             echo "::error::Daily sync heartbeat: last successful scheduled run is stale (last=${last_desc}, threshold=${HEARTBEAT_MAX_AGE_HOURS}h). The scheduled sync may have stopped." >&2
+            notify_heartbeat_stale "$last_ts"
             end_phase
             exit 1
           fi
