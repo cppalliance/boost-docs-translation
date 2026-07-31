@@ -11,6 +11,8 @@ are a separate namespace — see [README](README.md#releases) and
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-31
+
 ### Added
 
 - JSON Schema for the outbound Weblate add-or-update POST request:
@@ -44,6 +46,19 @@ are a separate namespace — see [README](README.md#releases) and
   silently diverge from raw API auto-discovery.
 - Bats coverage for `scripts/trigger-dispatch-common.sh`, `trigger-add-submodules.sh`,
   and `trigger-start-translation.sh`.
+- **`start-translation.yml`** fail-on-empty-discovery success criteria and
+  **`start-local`** gate ([#69](https://github.com/cppalliance/boost-docs-translation/pull/69),
+  c098a18): **`sync-mirrors`** exits non-zero when **`.gitmodules`** has zero **`libs/`**
+  entries (`require_libs_submodules_in_gitmodules`; `Run add-submodules first.`) instead of
+  exiting **0** with **`updated_submodules=[]`**. **`start-local`** **`if:`** gates on
+  **`sync-mirrors`** job success rather than a non-empty **`updated_submodules`** handoff;
+  when **`sync-mirrors`** succeeds with an empty array, **`start-local`** runs and exits
+  non-zero with a distinct empty-handoff error instead of silently succeeding.
+  Ships as **MINOR** (not **MAJOR**) because the versioned consumer surface—
+  **`repository_dispatch`** event types, **`client_payload`** fields, dispatch HTTP contract,
+  and shell **0 / 1 / 2** meanings—is unchanged; the prior green-on-misconfiguration paths
+  were an implementation defect (silent success on violated dispatch-order preconditions),
+  not a documented intentional success criterion operators should have pinned against.
 
 ### Fixed
 
@@ -57,6 +72,11 @@ are a separate namespace — see [README](README.md#releases) and
   **`submodule_fatal`**, **`finalize_rc`**, and optional **`weblate_rc`**—with documented
   last-wins priority; **`start-translation.yml`** **`start-local`** delegates to it instead
   of inline collapse logic.
+- **`commit_and_push_translations_branch`**: bounded retry (up to 3 attempts) on
+  **`--force-with-lease`** rejection with inter-attempt **`fetch`** and
+  **`--force-if-includes`** safety ([#70](https://github.com/cppalliance/boost-docs-translation/pull/70));
+  **`sync-translation.yml`** **`sync-local`** now routes through the same helper instead of a
+  bare **`git push --force-with-lease`**.
 
 ## [1.0.0] - 2026-07-07
 
@@ -87,5 +107,6 @@ are not listed.
 - Test harness and CI: `make check` (ShellCheck, actionlint, bats suite).
 - Operator quick reference: [GETTING-STARTED.md](docs/GETTING-STARTED.md) (formerly OPERATOR.md).
 
-[Unreleased]: https://github.com/cppalliance/boost-docs-translation/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/cppalliance/boost-docs-translation/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/cppalliance/boost-docs-translation/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/cppalliance/boost-docs-translation/releases/tag/v1.0.0
