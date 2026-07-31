@@ -30,6 +30,7 @@ jobs:
 
       - name: Check the last successful scheduled sync
         env:
+          # Ephemeral Actions token for gh CLI — not the SYNC_TOKEN PAT in GITHUB_TOKEN elsewhere.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail

@@ -3,7 +3,7 @@
 setup() {
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
-  common_setup
+  dispatch_common_setup
   SCRIPT="$ROOT/scripts/trigger-start-translation.sh"
 }
 
@@ -25,7 +25,6 @@ teardown() {
 }
 
 @test "trigger-start-translation: minimal dispatch includes defaults and omits lang_codes" {
-  install_dispatch_curl_stub
   run "$SCRIPT" --repo owner/repo --token fake-token
   [ "$status" -eq 0 ]
   [[ "$output" == *"Dispatched start-translation to owner/repo (HTTP 204)"* ]]
@@ -37,7 +36,6 @@ teardown() {
 }
 
 @test "trigger-start-translation: explicit --lang-codes included in payload" {
-  install_dispatch_curl_stub
   run "$SCRIPT" --repo owner/repo --token fake-token --lang-codes zh_Hans
   [ "$status" -eq 0 ]
   body="$(extract_dispatch_request_body "$MOCK_DISPATCH_REQUEST_LOG")"
@@ -45,7 +43,6 @@ teardown() {
 }
 
 @test "trigger-start-translation: non-204 from GitHub API fails" {
-  install_dispatch_curl_stub
   MOCK_DISPATCH_STATUS=500
   MOCK_DISPATCH_RESPONSE_BODY='{"message":"Server Error"}'
   export MOCK_DISPATCH_STATUS MOCK_DISPATCH_RESPONSE_BODY

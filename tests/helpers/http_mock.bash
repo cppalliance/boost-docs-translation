@@ -16,6 +16,11 @@ common_setup() {
   export ROOT="$root_dir"
 }
 
+dispatch_common_setup() {
+  common_setup
+  install_dispatch_curl_stub
+}
+
 common_teardown() {
   restore_dispatch_curl_stub
 }

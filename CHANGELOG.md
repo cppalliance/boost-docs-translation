@@ -44,8 +44,9 @@ are a separate namespace — see [README](README.md#releases) and
 
 ### Fixed
 
-- `build_dispatch_json` in `trigger-dispatch-common.sh`: avoid jq 1.7 naming
-  collision with the built-in `pairs` function.
+- `build_dispatch_json` in `trigger-dispatch-common.sh`: pass key/value pairs
+  positionally via jq `--args` and `$ARGS.positional` instead of building an
+  intermediate array.
 - Clone and finalize steps now fail fast: **`clone_repo`**, **`sync_translations_branch`**,
   and **`finalize_translations_*`** propagate non-zero status instead of continuing with
   incomplete state.

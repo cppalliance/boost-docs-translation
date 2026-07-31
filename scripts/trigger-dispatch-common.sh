@@ -8,9 +8,11 @@ DEFAULT_REPO="cppalliance/boost-docs-translation"
 DEFAULT_VERSION="boost-1.90.0"
 
 infer_repo_from_git() {
-  local url root o r
-  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
-  url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 1
+  local url="${1:-}" root o r
+  if [[ -z "$url" ]]; then
+    root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+    url="$(git -C "$root" remote get-url origin 2>/dev/null)" || return 1
+  fi
   if [[ "$url" =~ github\.com[:/]([^/]+)/([^[:space:]]+) ]]; then
     o="${BASH_REMATCH[1]}"
     r="${BASH_REMATCH[2]}"
@@ -44,6 +46,9 @@ resolve_trigger_repo() {
   return 1
 }
 
+# Client-side dispatch auth: prefers GH_TOKEN, then GITHUB_TOKEN. Workflow jobs use a
+# different mapping — SYNC_TOKEN PAT in GITHUB_TOKEN; ephemeral Actions token in GH_TOKEN
+# (e.g. heartbeat.yml). The names are not interchangeable across those two contexts.
 resolve_trigger_token() {
   local explicit="${1:-}"
   local token="${explicit:-${GH_TOKEN:-${GITHUB_TOKEN:-}}}"
@@ -81,7 +86,7 @@ build_dispatch_json() {
         )
       }' \
       "$@"
-    return 0
+    return $?
   fi
   local py=""
   command -v python3 >/dev/null 2>&1 && py="python3"
@@ -97,7 +102,7 @@ for i in range(0,len(pairs),2):
         d[k]=v
 print(json.dumps({"event_type":et,"client_payload":d}))' \
       "$event_type" "$@"
-    return 0
+    return $?
   fi
   return 1
 }

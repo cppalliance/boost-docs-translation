@@ -3,7 +3,7 @@
 setup() {
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
-  common_setup
+  dispatch_common_setup
   # shellcheck source=/dev/null
   source "$ROOT/scripts/trigger-dispatch-common.sh"
 }
@@ -27,6 +27,47 @@ teardown() {
   [ "$status" -eq 0 ]
   echo "$output" | jq -e '.event_type == "start-translation"' >/dev/null
   echo "$output" | jq -e '.client_payload == {}' >/dev/null
+}
+
+@test "build_dispatch_json: python fallback when jq unavailable" {
+  run bash -c '
+    command() {
+      if [[ "$1" == "-v" && "$2" == "jq" ]]; then
+        return 1
+      fi
+      builtin command "$@"
+    }
+    source "'"$ROOT"'/scripts/trigger-dispatch-common.sh"
+    if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+      exit 77
+    fi
+    build_dispatch_json "start-translation" version "boost-1.90.0" lang_codes "" extensions ".adoc"
+  '
+  if [[ "$status" -eq 77 ]]; then
+    skip "python not available"
+  fi
+  [ "$status" -eq 0 ]
+  echo "$output" | jq -e '.event_type == "start-translation"' >/dev/null
+  echo "$output" | jq -e '.client_payload.version == "boost-1.90.0"' >/dev/null
+  echo "$output" | jq -e '.client_payload.extensions == ".adoc"' >/dev/null
+  echo "$output" | jq -e '.client_payload | has("lang_codes") | not' >/dev/null
+}
+
+@test "infer_repo_from_git: parses https remote URL" {
+  run infer_repo_from_git "https://github.com/owner/repo.git"
+  [ "$status" -eq 0 ]
+  [ "$output" = "owner/repo" ]
+}
+
+@test "infer_repo_from_git: parses scp-style remote URL" {
+  run infer_repo_from_git "git@github.com:org/project.git"
+  [ "$status" -eq 0 ]
+  [ "$output" = "org/project" ]
+}
+
+@test "infer_repo_from_git: rejects non-GitHub URL" {
+  run infer_repo_from_git "https://gitlab.com/group/project.git"
+  [ "$status" -eq 1 ]
 }
 
 @test "resolve_trigger_repo: explicit repo wins" {
@@ -68,7 +109,11 @@ teardown() {
 }
 
 @test "resolve_trigger_token: explicit token" {
-  run resolve_trigger_token "explicit-token"
+  run bash -c '
+    source "'"$ROOT"'/scripts/trigger-dispatch-common.sh"
+    export GH_TOKEN="ambient-should-not-win"
+    resolve_trigger_token "explicit-token"
+  '
   [ "$status" -eq 0 ]
   [ "$output" = "explicit-token" ]
 }
@@ -95,7 +140,6 @@ teardown() {
 }
 
 @test "post_repository_dispatch: succeeds on HTTP 204" {
-  install_dispatch_curl_stub
   local payload='{"event_type":"add-submodules","client_payload":{}}'
   run post_repository_dispatch "owner/repo" "fake-token" "$payload" "add-submodules"
   [ "$status" -eq 0 ]
@@ -105,7 +149,6 @@ teardown() {
 }
 
 @test "post_repository_dispatch: fails on non-204" {
-  install_dispatch_curl_stub
   local payload='{"event_type":"add-submodules","client_payload":{}}'
   MOCK_DISPATCH_STATUS=403
   MOCK_DISPATCH_RESPONSE_BODY='{"message":"Forbidden"}'

@@ -3,7 +3,7 @@
 setup() {
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
-  common_setup
+  dispatch_common_setup
   SCRIPT="$ROOT/scripts/trigger-add-submodules.sh"
 }
 
@@ -39,7 +39,6 @@ teardown() {
 }
 
 @test "trigger-add-submodules: explicit --submodules dispatches payload" {
-  install_dispatch_curl_stub
   run "$SCRIPT" --repo owner/repo --token fake-token --submodules 'a, b'
   [ "$status" -eq 0 ]
   [[ "$output" == *"Dispatched add-submodules to owner/repo (HTTP 204)"* ]]

@@ -76,6 +76,10 @@ cp .env.example .env   # set GH_TOKEN (GITHUB_TOKEN is also accepted)
 - **`GH_TOKEN`** is **client-side only** — permission to call
   `POST /repos/{owner}/{repo}/dispatches`. Workflows still use the GitHub
   **secrets** from step 0 on the server.
+- In **workflow jobs**, naming is inverted relative to the client scripts:
+  the broad **`SYNC_TOKEN`** PAT is exported as **`GITHUB_TOKEN`**, while the
+  ephemeral Actions token (e.g. for `gh` in **`heartbeat.yml`**) is exported as
+  **`GH_TOKEN`**. The two names are interchangeable only on the client side.
 - Requires **curl** and **jq** or Python 3.
 
 See [README § Scripts](../README.md#scripts-local-repository_dispatch) for script

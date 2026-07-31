@@ -2,8 +2,10 @@
 # Shared shell library for add-submodules and start-translation workflows.
 # Source env.sh before lib.sh so ORG, MODULE_ORG, BOT_NAME, BOT_EMAIL, BOOST_ORG, MASTER_BRANCH,
 # LOCAL_BRANCH_PREFIX, TRANSLATION_BRANCH_PREFIX, WEBLATE_ENDPOINT_PATH, and TRANSLATIONS_REPO
-# are set. Workflows also set GITHUB_TOKEN, LANG_CODES, and (for start-translation)
-# WEBLATE_URL / WEBLATE_TOKEN in the step env before sourcing.
+# are set. Workflows also set GITHUB_TOKEN (from secrets.SYNC_TOKEN — broad PAT),
+# LANG_CODES, and (for start-translation) WEBLATE_URL / WEBLATE_TOKEN in the step
+# env before sourcing. Some workflows set GH_TOKEN to the ephemeral Actions token
+# (e.g. heartbeat.yml for gh CLI); that is not the same privilege level as GITHUB_TOKEN.
 # Call validate_secrets (or validate_secrets weblate) after sourcing env.sh and lib.sh.
 #
 # Per-submodule batch return convention (see docs/ARCHITECTURE.md §6):
@@ -540,7 +542,7 @@ validate_secrets() {
   local require_weblate=0
   [[ "${1:-}" == "weblate" ]] && require_weblate=1
 
-  _require_nonempty GITHUB_TOKEN "SYNC_TOKEN secret is not set."
+  _require_nonempty GITHUB_TOKEN "SYNC_TOKEN secret is not set (mapped to GITHUB_TOKEN in workflow env)."
   if [[ -n "${LANG_CODE:-}" ]]; then
     validate_lang_codes "$LANG_CODE"
   elif [[ -n "${LANG_CODES:-}" ]]; then

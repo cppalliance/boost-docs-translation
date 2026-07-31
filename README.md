@@ -192,7 +192,10 @@ These wrappers use only **`exit 0`** (success, including **`--help`**) and **`ex
 Copy **`.env.example`** to **`.env`** and set **`GH_TOKEN`** (or **`GITHUB_TOKEN`**)
 with permission to call **`POST /repos/{owner}/{repo}/dispatches`** on the target
 repo. The workflows still use GitHub **secrets** and **variables** on the server as
-documented below.
+documented below. **Workflow jobs** map tokens differently: **`SYNC_TOKEN`** (broad
+PAT) is set as **`GITHUB_TOKEN`**; the ephemeral Actions token used by **`gh`** (e.g.
+in **`heartbeat.yml`**) is set as **`GH_TOKEN`**. Those names are interchangeable
+only in the local trigger scripts, not across client and workflow contexts.
 
 ---
 
