@@ -67,25 +67,20 @@ build_dispatch_json() {
   local event_type="$1"
   shift
   if command -v jq >/dev/null 2>&1; then
-    local json_pairs='[]' key val
-    while [[ $# -gt 0 ]]; do
-      key="$1"
-      val="$2"
-      shift 2
-      json_pairs="$(jq -n --argjson arr "$json_pairs" --arg k "$key" --arg v "$val" \
-        '$arr + [{key: $k, value: $v}]')"
-    done
-    jq -n --arg event_type "$event_type" --argjson kv_pairs "$json_pairs" \
+    jq -n --arg event_type "$event_type" --args \
       '{
         event_type: $event_type,
         client_payload: (
-          {}
-          | reduce $kv_pairs[] as $p (
-              .;
-              if ($p.value | length) > 0 then . + {($p.key): $p.value} else . end
-            )
+          reduce range(0; $ARGS.positional | length; 2) as $i (
+            {};
+            if ($ARGS.positional[$i + 1] | length) > 0
+            then . + {($ARGS.positional[$i]): $ARGS.positional[$i + 1]}
+            else .
+            end
+          )
         )
-      }'
+      }' \
+      "$@"
     return 0
   fi
   local py=""

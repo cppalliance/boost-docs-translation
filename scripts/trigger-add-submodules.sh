@@ -60,18 +60,22 @@ VERSION=""
 SUBMODULES=""
 LANG_CODES=""
 
+shift_pair_into() {
+  printf -v "$1" '%s' "${2:-}"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
-      REPO="${2:-}"; shift 2 || exit 1 ;;
+      shift_pair_into REPO "$2"; shift 2 || exit 1 ;;
     --token)
-      TOKEN="${2:-}"; shift 2 || exit 1 ;;
+      shift_pair_into TOKEN "$2"; shift 2 || exit 1 ;;
     --version)
-      VERSION="${2:-}"; shift 2 || exit 1 ;;
+      shift_pair_into VERSION "$2"; shift 2 || exit 1 ;;
     --submodules)
-      SUBMODULES="${2:-}"; shift 2 || exit 1 ;;
+      shift_pair_into SUBMODULES "$2"; shift 2 || exit 1 ;;
     --lang-codes)
-      LANG_CODES="${2:-}"; shift 2 || exit 1 ;;
+      shift_pair_into LANG_CODES "$2"; shift 2 || exit 1 ;;
     -h|--help)
       usage; exit 0 ;;
     *)

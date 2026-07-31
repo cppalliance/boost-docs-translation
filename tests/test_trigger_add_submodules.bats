@@ -1,14 +1,14 @@
 #!/usr/bin/env bats
 
 setup() {
-  ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
-  SCRIPT="$ROOT/scripts/trigger-add-submodules.sh"
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
+  common_setup
+  SCRIPT="$ROOT/scripts/trigger-add-submodules.sh"
 }
 
 teardown() {
-  restore_dispatch_curl_stub
+  common_teardown
 }
 
 @test "trigger-add-submodules: --help exits 0" {

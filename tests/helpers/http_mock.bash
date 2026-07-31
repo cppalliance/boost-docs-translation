@@ -9,6 +9,17 @@ MOCK_WEBLATE_REQUEST_LOG=""
 MOCK_WEBLATE_SERVER_SCRIPT=""
 _CURL_ORIG_PATH=""
 
+common_setup() {
+  local root_dir
+  root_dir="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
+  # shellcheck disable=SC2034
+  export ROOT="$root_dir"
+}
+
+common_teardown() {
+  restore_dispatch_curl_stub
+}
+
 start_weblate_mock_server() {
   local status="${MOCK_WEBLATE_STATUS:-202}"
   local body="${MOCK_WEBLATE_BODY:-{\"status\":\"accepted\"}}"
@@ -64,7 +75,7 @@ PYEOF
   python3 "$MOCK_WEBLATE_SERVER_SCRIPT" &
   MOCK_WEBLATE_PID=$!
 
-  local i=0 port=""
+  local i=0 port="" sleep_sec=0.05
   while [[ -z "$port" ]]; do
     if [[ -s "$MOCK_WEBLATE_PORT_FILE" ]]; then
       port="$(<"$MOCK_WEBLATE_PORT_FILE")"
@@ -84,7 +95,8 @@ PYEOF
       echo "http_mock: mock server failed to start" >&2
       return 1
     fi
-    sleep 0.05
+    sleep "$sleep_sec"
+    sleep_sec="$(awk "BEGIN {v=$sleep_sec*2; print (v>0.5?0.5:v)}")"
   done
 
   MOCK_WEBLATE_PORT="$port"
@@ -109,18 +121,20 @@ stop_weblate_mock_server() {
   unset MOCK_WEBLATE_STATUS MOCK_WEBLATE_BODY MOCK_WEBLATE_DELAY_SEC
 }
 
-install_curl_timeout_stub() {
-  install_curl_stub
+_init_curl_wrapper_dir() {
+  _CURL_ORIG_PATH="$PATH"
+  CURL_WRAPPER_DIR="$(mktemp -d)"
+  REAL_CURL="$(command -v curl)"
+  export REAL_CURL CURL_WRAPPER_DIR
 }
 
-install_curl_stub() {
-  _CURL_ORIG_PATH="$PATH"
-  local wrapper_dir
-  wrapper_dir="$(mktemp -d)"
-  REAL_CURL="$(command -v curl)"
-  export REAL_CURL
-  cat >"$wrapper_dir/curl" <<'EOF'
-#!/usr/bin/env bash
+_activate_curl_wrapper() {
+  chmod +x "$CURL_WRAPPER_DIR/curl"
+  export PATH="$CURL_WRAPPER_DIR:$PATH"
+}
+
+_curl_stub_preamble() {
+  cat <<'STUB_EOF'
 if [[ -n "${MOCK_CURL_EXIT:-}" ]]; then
   echo "mock curl: simulated exit ${MOCK_CURL_EXIT}" >&2
   exit "$MOCK_CURL_EXIT"
@@ -129,11 +143,27 @@ if [[ "${MOCK_CURL_TIMEOUT:-}" == "1" ]]; then
   echo "mock curl: simulated timeout" >&2
   exit 28
 fi
+STUB_EOF
+}
+
+_curl_stub_exec_line() {
+  cat <<'STUB_EOF'
 exec "$REAL_CURL" "$@"
-EOF
-  chmod +x "$wrapper_dir/curl"
-  CURL_WRAPPER_DIR="$wrapper_dir"
-  export PATH="$wrapper_dir:$PATH"
+STUB_EOF
+}
+
+install_curl_timeout_stub() {
+  install_curl_stub
+}
+
+install_curl_stub() {
+  _init_curl_wrapper_dir
+  {
+    echo '#!/usr/bin/env bash'
+    _curl_stub_preamble
+    _curl_stub_exec_line
+  } >"$CURL_WRAPPER_DIR/curl"
+  _activate_curl_wrapper
 }
 
 restore_curl_stub() {
@@ -148,27 +178,17 @@ restore_curl_stub() {
 
 # Intercept GitHub repository_dispatch POST (no real network).
 install_dispatch_curl_stub() {
-  _CURL_ORIG_PATH="$PATH"
-  local wrapper_dir
-  wrapper_dir="$(mktemp -d)"
-  REAL_CURL="$(command -v curl)"
-  export REAL_CURL
+  _init_curl_wrapper_dir
   MOCK_DISPATCH_REQUEST_LOG="${MOCK_DISPATCH_REQUEST_LOG:-$(mktemp)}"
   export MOCK_DISPATCH_REQUEST_LOG
   MOCK_DISPATCH_STATUS="${MOCK_DISPATCH_STATUS:-204}"
   export MOCK_DISPATCH_STATUS
   MOCK_DISPATCH_RESPONSE_BODY="${MOCK_DISPATCH_RESPONSE_BODY:-}"
   export MOCK_DISPATCH_RESPONSE_BODY
-  cat >"$wrapper_dir/curl" <<'EOF'
-#!/usr/bin/env bash
-if [[ -n "${MOCK_CURL_EXIT:-}" ]]; then
-  echo "mock curl: simulated exit ${MOCK_CURL_EXIT}" >&2
-  exit "$MOCK_CURL_EXIT"
-fi
-if [[ "${MOCK_CURL_TIMEOUT:-}" == "1" ]]; then
-  echo "mock curl: simulated timeout" >&2
-  exit 28
-fi
+  {
+    echo '#!/usr/bin/env bash'
+    _curl_stub_preamble
+    cat <<'EOF'
 args=("$@")
 url=""
 method=""
@@ -233,15 +253,14 @@ if [[ "$url" == *"api.github.com/repos/"*/dispatches && "$method" == "POST" ]]; 
     fi
   fi
   if [[ -n "$write_out" ]]; then
-    printf '%s' "${MOCK_DISPATCH_STATUS:-204}"
+    printf '%s' "$MOCK_DISPATCH_STATUS"
   fi
   exit 0
 fi
 exec "$REAL_CURL" "$@"
 EOF
-  chmod +x "$wrapper_dir/curl"
-  CURL_WRAPPER_DIR="$wrapper_dir"
-  export PATH="$wrapper_dir:$PATH"
+  } >"$CURL_WRAPPER_DIR/curl"
+  _activate_curl_wrapper
 }
 
 restore_dispatch_curl_stub() {

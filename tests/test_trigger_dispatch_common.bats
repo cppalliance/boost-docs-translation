@@ -1,15 +1,15 @@
 #!/usr/bin/env bats
 
 setup() {
-  ROOT="$(cd "$BATS_TEST_DIRNAME/.." && pwd)"
   # shellcheck source=tests/helpers/http_mock.bash
   source "$BATS_TEST_DIRNAME/helpers/http_mock.bash"
+  common_setup
   # shellcheck source=/dev/null
   source "$ROOT/scripts/trigger-dispatch-common.sh"
 }
 
 teardown() {
-  restore_dispatch_curl_stub
+  common_teardown
 }
 
 @test "build_dispatch_json: sets event_type and includes non-empty fields" {
@@ -96,8 +96,8 @@ teardown() {
 
 @test "post_repository_dispatch: succeeds on HTTP 204" {
   install_dispatch_curl_stub
-  run post_repository_dispatch "owner/repo" "fake-token" \
-    '{"event_type":"add-submodules","client_payload":{}}' "add-submodules"
+  local payload='{"event_type":"add-submodules","client_payload":{}}'
+  run post_repository_dispatch "owner/repo" "fake-token" "$payload" "add-submodules"
   [ "$status" -eq 0 ]
   [[ "$output" == *"Dispatched add-submodules to owner/repo (HTTP 204)"* ]]
   [ -f "$MOCK_DISPATCH_REQUEST_LOG" ]
@@ -106,11 +106,11 @@ teardown() {
 
 @test "post_repository_dispatch: fails on non-204" {
   install_dispatch_curl_stub
+  local payload='{"event_type":"add-submodules","client_payload":{}}'
   MOCK_DISPATCH_STATUS=403
   MOCK_DISPATCH_RESPONSE_BODY='{"message":"Forbidden"}'
   export MOCK_DISPATCH_STATUS MOCK_DISPATCH_RESPONSE_BODY
-  run post_repository_dispatch "owner/repo" "fake-token" \
-    '{"event_type":"add-submodules","client_payload":{}}' "add-submodules"
+  run post_repository_dispatch "owner/repo" "fake-token" "$payload" "add-submodules"
   [ "$status" -eq 1 ]
   [[ "$output" == *"GitHub API error: HTTP 403"* ]]
 }
