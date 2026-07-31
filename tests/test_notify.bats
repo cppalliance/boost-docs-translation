@@ -54,7 +54,7 @@ teardown() {
   run build_slack_failure_payload \
     "Sync translation failed" \
     "https://github.com/org/repo/actions/runs/99" \
-    $'  • discover\n  • sync-local (ja) — lang=ja' \
+    $'  • discover\n  • sync-local (ja) — lang=ja'
   [ "$status" -eq 0 ]
   echo "$output" | jq -e . >/dev/null
   [[ "$output" == *"https://github.com/org/repo/actions/runs/99"* ]]

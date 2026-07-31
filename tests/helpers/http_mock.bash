@@ -113,13 +113,20 @@ install_curl_timeout_stub() {
   install_curl_stub
 }
 
-install_curl_stub() {
+_prepare_curl_stub_wrapper_dir() {
   _CURL_ORIG_PATH="$PATH"
-  local wrapper_dir
-  wrapper_dir="$(mktemp -d)"
+  CURL_WRAPPER_DIR="$(mktemp -d)"
   REAL_CURL="$(command -v curl)"
-  export REAL_CURL
-  cat >"$wrapper_dir/curl" <<'EOF'
+  export REAL_CURL CURL_WRAPPER_DIR
+}
+
+_activate_curl_stub_wrapper() {
+  chmod +x "$CURL_WRAPPER_DIR/curl"
+  export PATH="$CURL_WRAPPER_DIR:$PATH"
+}
+
+_curl_stub_wrapper_preamble() {
+  cat <<'EOF'
 #!/usr/bin/env bash
 if [[ -n "${MOCK_CURL_EXIT:-}" ]]; then
   echo "mock curl: simulated exit ${MOCK_CURL_EXIT}" >&2
@@ -129,11 +136,18 @@ if [[ "${MOCK_CURL_TIMEOUT:-}" == "1" ]]; then
   echo "mock curl: simulated timeout" >&2
   exit 28
 fi
+EOF
+}
+
+install_curl_stub() {
+  _prepare_curl_stub_wrapper_dir
+  {
+    _curl_stub_wrapper_preamble
+    cat <<'EOF'
 exec "$REAL_CURL" "$@"
 EOF
-  chmod +x "$wrapper_dir/curl"
-  CURL_WRAPPER_DIR="$wrapper_dir"
-  export PATH="$wrapper_dir:$PATH"
+  } >"$CURL_WRAPPER_DIR/curl"
+  _activate_curl_stub_wrapper
 }
 
 restore_curl_stub() {
@@ -144,29 +158,15 @@ restore_curl_stub() {
     rm -rf "$CURL_WRAPPER_DIR"
   fi
   unset CURL_WRAPPER_DIR REAL_CURL _CURL_ORIG_PATH MOCK_CURL_TIMEOUT MOCK_CURL_EXIT
-  unset MOCK_SLACK_REQUEST_LOG MOCK_SLACK_STATUS
 }
 
 install_slack_curl_stub() {
-  _CURL_ORIG_PATH="$PATH"
-  local wrapper_dir
-  wrapper_dir="$(mktemp -d)"
-  REAL_CURL="$(command -v curl)"
-  export REAL_CURL
+  _prepare_curl_stub_wrapper_dir
   MOCK_SLACK_REQUEST_LOG="$(mktemp)"
   export MOCK_SLACK_REQUEST_LOG
-  MOCK_SLACK_STATUS="${MOCK_SLACK_STATUS:-200}"
-  export MOCK_SLACK_STATUS
-  cat >"$wrapper_dir/curl" <<'EOF'
-#!/usr/bin/env bash
-if [[ -n "${MOCK_CURL_EXIT:-}" ]]; then
-  echo "mock curl: simulated exit ${MOCK_CURL_EXIT}" >&2
-  exit "$MOCK_CURL_EXIT"
-fi
-if [[ "${MOCK_CURL_TIMEOUT:-}" == "1" ]]; then
-  echo "mock curl: simulated timeout" >&2
-  exit 28
-fi
+  {
+    _curl_stub_wrapper_preamble
+    cat <<'EOF'
 if [[ -n "${SLACK_WEBHOOK_URL:-}" && " $* " == *" ${SLACK_WEBHOOK_URL} "* ]]; then
   body=""
   prev=""
@@ -187,13 +187,12 @@ if [[ -n "${SLACK_WEBHOOK_URL:-}" && " $* " == *" ${SLACK_WEBHOOK_URL} "* ]]; th
 fi
 exec "$REAL_CURL" "$@"
 EOF
-  chmod +x "$wrapper_dir/curl"
-  CURL_WRAPPER_DIR="$wrapper_dir"
-  export PATH="$wrapper_dir:$PATH"
+  } >"$CURL_WRAPPER_DIR/curl"
+  _activate_curl_stub_wrapper
 }
 
 restore_slack_curl_stub() {
   [[ -n "${MOCK_SLACK_REQUEST_LOG:-}" && -f "$MOCK_SLACK_REQUEST_LOG" ]] && rm -f "$MOCK_SLACK_REQUEST_LOG"
-  unset MOCK_SLACK_REQUEST_LOG MOCK_SLACK_STATUS
+  unset MOCK_SLACK_REQUEST_LOG
   restore_curl_stub
 }

@@ -2,11 +2,20 @@
 # Slack failure notifications for sync-translation and heartbeat workflows.
 # Source env.sh before notify.sh when using workflow globals (e.g. HEARTBEAT_MAX_AGE_HOURS).
 
+resolve_run_id() {
+  echo "${1:-${GITHUB_RUN_ID:-}}"
+}
+
+github_actions_url() {
+  local path="$1"
+  echo "${GITHUB_SERVER_URL:-https://github.com}/${GITHUB_REPOSITORY}/actions/${path}"
+}
+
 # Return workflow run URL for the given run id (defaults to GITHUB_RUN_ID).
 workflow_run_url() {
-  local run_id="${1:-${GITHUB_RUN_ID:-}}"
-  local server="${GITHUB_SERVER_URL:-https://github.com}"
-  echo "${server}/${GITHUB_REPOSITORY}/actions/runs/${run_id}"
+  local run_id
+  run_id="$(resolve_run_id "$1")"
+  github_actions_url "runs/${run_id}"
 }
 
 # Extract matrix lang from a sync-local job name, e.g. "sync-local (zh_Hans)" → zh_Hans.
@@ -62,14 +71,16 @@ send_slack_notification() {
 
 # Fetch failed jobs for a workflow run and format summary lines.
 collect_workflow_failed_jobs_summary() {
-  local run_id="${1:-${GITHUB_RUN_ID:-}}"
+  local run_id
+  run_id="$(resolve_run_id "$1")"
   gh run view "$run_id" --repo "$GITHUB_REPOSITORY" --json jobs \
     | format_failed_jobs_summary
 }
 
 # Notify Slack about sync-translation workflow failures (discover or sync-local).
 notify_sync_translation_failure() {
-  local run_id="${1:-${GITHUB_RUN_ID:-}}"
+  local run_id
+  run_id="$(resolve_run_id "$1")"
   local run_url summary payload
   run_url="$(workflow_run_url "$run_id")"
   summary="$(collect_workflow_failed_jobs_summary "$run_id")"
@@ -81,11 +92,10 @@ notify_sync_translation_failure() {
 notify_heartbeat_stale() {
   local last_ts="$1"
   local run_url workflow_url detail payload
-  local server="${GITHUB_SERVER_URL:-https://github.com}"
   local last_desc="${last_ts:-none on record}"
 
   run_url="$(workflow_run_url)"
-  workflow_url="${server}/${GITHUB_REPOSITORY}/actions/workflows/sync-translation.yml"
+  workflow_url="$(github_actions_url "workflows/sync-translation.yml")"
   detail="Daily sync heartbeat: last successful scheduled run is stale (last=${last_desc}, threshold=${HEARTBEAT_MAX_AGE_HOURS}h). The scheduled sync may have stopped."
   detail+=$'\n'"Workflow: ${workflow_url}"
 

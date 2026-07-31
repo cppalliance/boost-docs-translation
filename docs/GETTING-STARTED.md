@@ -33,7 +33,7 @@ flowchart TD
 
 | Step | When | Workflow | Trigger | Script / client |
 | ---- | ---- | -------- | ------- | ----------------- |
-| 0 | Always first | — | — | GitHub secrets/vars: `SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, `LANG_CODES`, optional `SUBMODULES_ORG` |
+| 0 | Always first | — | — | GitHub secrets/vars: `SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, `SLACK_WEBHOOK_URL`, `LANG_CODES`, optional `SUBMODULES_ORG` |
 | 1 | Optional | — | — | `cp .env.example .env` → `GH_TOKEN` |
 | 2 | Greenfield / new libs | `add-submodules.yml` | `event_type: add-submodules` | `scripts/trigger-add-submodules.sh` |
 | 3 | After mirrors exist | `start-translation.yml` | `event_type: start-translation` | `scripts/trigger-start-translation.sh` |
