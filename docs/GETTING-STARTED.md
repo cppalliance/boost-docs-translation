@@ -61,7 +61,9 @@ Configure these on the translations repository **before** dispatching any workfl
 
 `SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, and `SLACK_WEBHOOK_URL` are required secrets;
 `LANG_CODES` and optional `SUBMODULES_ORG` are repository variables. See the
-linked README sections for scope, format, and which workflows consume each value.
+linked README sections for scope and format. **`sync-translation`** requires
+**`SYNC_TOKEN`** for `discover` and `sync-local`; its `notify-failure` job requires
+**`SLACK_WEBHOOK_URL`**.
 
 ---
 
@@ -271,8 +273,8 @@ For each remote **`${LOCAL_BRANCH_PREFIX}*`** branch in the super-repo: checkout
 with submodules, set each submodule's tracking branch to that name, run
 `git submodule update --remote`, commit if pointers changed, and force-push.
 
-Requires secret **`SYNC_TOKEN`** only. Relies on **`.gitmodules`** URLs established
-by steps 2–3.
+Requires secrets **`SYNC_TOKEN`** (`discover`, `sync-local`) and **`SLACK_WEBHOOK_URL`**
+(`notify-failure`). Relies on **`.gitmodules`** URLs established by steps 2–3.
 
 ### Verify
 
