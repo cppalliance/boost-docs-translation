@@ -11,6 +11,8 @@ are a separate namespace — see [README](README.md#releases) and
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-31
+
 ### Added
 
 - JSON Schema for the outbound Weblate add-or-update POST request:
@@ -87,5 +89,6 @@ are not listed.
 - Test harness and CI: `make check` (ShellCheck, actionlint, bats suite).
 - Operator quick reference: [GETTING-STARTED.md](docs/GETTING-STARTED.md) (formerly OPERATOR.md).
 
-[Unreleased]: https://github.com/cppalliance/boost-docs-translation/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/cppalliance/boost-docs-translation/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/cppalliance/boost-docs-translation/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/cppalliance/boost-docs-translation/releases/tag/v1.0.0
