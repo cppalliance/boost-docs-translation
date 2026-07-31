@@ -203,13 +203,28 @@ update_translations_submodule() {
   fi
 }
 
+# `git push -h` exits 129, so capture the help text first (|| true) and grep it
+# separately. Piping straight into grep would fail the probe under `set -o
+# pipefail` (which the workflows enable) even when the flag is present.
+git_push_help_mentions() {
+  local help
+  help="$(git push -h 2>&1 || true)"
+  grep -qF "$1" <<<"$help"
+}
+
 git_push_supports_force_with_lease() {
-  git push -h 2>&1 | grep -qF 'force-with-lease'
+  git_push_help_mentions 'force-with-lease'
+}
+
+# --force-if-includes (Git 2.30+) makes the safe retry below reject an unmerged
+# remote advance instead of overwriting it.
+git_push_supports_force_if_includes() {
+  git_push_help_mentions 'force-if-includes'
 }
 
 commit_and_push_translations_branch() {
   local dir="$1" branch="$2" libs_ref="$3" force="${4:-false}"
-  local push_rc remote_sha
+  local push_rc remote_sha fetch_rc attempt max_attempts=3
   git -C "$dir" status --short
   if git -C "$dir" diff --cached --quiet; then
     echo "  No staged submodule changes on $branch; skipping commit." >&2
@@ -221,14 +236,35 @@ commit_and_push_translations_branch() {
       phase_err "git push --force-with-lease is not supported by this Git installation"
       return 1
     fi
-    if git -C "$dir" push --force-with-lease origin "$branch"; then
-      :
-    else
-      push_rc=$?
-      remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')
-      phase_err "force-with-lease push rejected for branch $branch (remote HEAD=${remote_sha:-unknown}); remote may have advanced concurrently — re-run after fetch or resolve manually."
-      return "$push_rc"
+    if ! git_push_supports_force_if_includes; then
+      phase_err "git push --force-if-includes is not supported; requires Git 2.30+"
+      return 1
     fi
+    # A concurrent advance rejects the lease. Fetch so the lease reflects the
+    # advanced remote and retry, but keep --force-if-includes so the retry still
+    # rejects an advance we never integrated. A spurious rejection (remote
+    # unchanged from our base) retries to success; a real concurrent commit
+    # fails closed rather than being silently overwritten.
+    for (( attempt=1; attempt<=max_attempts; attempt++ )); do
+      if git -C "$dir" push --force-with-lease --force-if-includes origin "$branch"; then
+        return 0
+      else
+        push_rc=$?
+      fi
+      if (( attempt < max_attempts )); then
+        # A failed fetch (auth/network) leaves the tracking ref stale, so a
+        # retry can't satisfy the lease. Fail with the real cause instead of
+        # letting the loop misreport it as a concurrent-advance rejection.
+        git -C "$dir" fetch origin "$branch" || {
+          fetch_rc=$?
+          phase_err "failed to fetch origin/$branch before retrying the push"
+          return "$fetch_rc"
+        }
+      fi
+    done
+    remote_sha=$(git -C "$dir" ls-remote --heads origin "$branch" | awk '{print $1}')
+    phase_err "force-with-lease push rejected for branch $branch (remote HEAD=${remote_sha:-unknown}); remote may have advanced concurrently — re-run after fetch or resolve manually."
+    return "$push_rc"
   else
     git -C "$dir" push origin "$branch"
   fi

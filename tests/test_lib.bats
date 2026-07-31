@@ -345,7 +345,7 @@ teardown() {
   git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
 }
 
-@test "finalize_translations_local: fail-fast on lease rejection (no retry)" {
+@test "finalize_translations_local: does not overwrite a concurrent advance (force-if-includes)" {
   # shellcheck source=tests/helpers/git_fixtures.bash
   source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
   init_git_fixture_root
@@ -358,22 +358,84 @@ teardown() {
   UPDATES=("algorithm")
   update_translations_submodule() { :; }
 
-  local fetch_counter="$BATS_TMPDIR/fetch-count"
-  : >"$fetch_counter"
-  install_git_fetch_counter "$fetch_counter" "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance"
+  # One concurrent advance: the fetch updates the lease baseline, but
+  # --force-if-includes still rejects the retry because that advance was never
+  # integrated, so the run fails closed instead of overwriting it.
+  install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance" 1
 
-  remote_sha_before=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
-
+  local stderr_file="$BATS_TMPDIR/finalize-no-overwrite-stderr"
   set +e
-  finalize_translations_local "$trans_dir" "develop" "en" 2>/dev/null
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
   rc=$?
   set -e
 
   [ "$rc" -ne 0 ]
-  [ "$(wc -l <"$fetch_counter")" -eq 1 ]
-  remote_sha_after=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
-  [ "$remote_sha_before" != "$remote_sha_after" ]
-  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha_after" | grep -q "concurrent advance"
+  grep -q "force-with-lease push rejected" "$stderr_file"
+  # the concurrent advance is still the remote tip, not overwritten by our push
+  remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
+}
+
+@test "finalize_translations_local: fails after force-with-lease retries are exhausted" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+
+  UPDATES=("algorithm")
+  update_translations_submodule() { :; }
+
+  # Advance the remote before every push, so all three attempts are rejected.
+  # The counter also records fetches: 1 finalize pre-fetch + 2 between retries.
+  local fetch_counter="$BATS_TMPDIR/fetch-count"
+  : >"$fetch_counter"
+  install_git_fetch_counter "$fetch_counter" "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance"
+
+  local stderr_file="$BATS_TMPDIR/finalize-exhausted-stderr"
+  set +e
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
+  rc=$?
+  set -e
+
+  [ "$rc" -ne 0 ]
+  [ "$(wc -l <"$fetch_counter")" -eq 3 ]
+  grep -q "force-with-lease push rejected" "$stderr_file"
+  remote_sha=$(git ls-remote --heads "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" | awk '{print $1}')
+  grep -q "$remote_sha" "$stderr_file"
+  git --git-dir="$BARE_REMOTE" show -s --format=%s "$remote_sha" | grep -q "concurrent advance"
+}
+
+@test "finalize_translations_local: fails with the real cause when an inter-attempt fetch fails" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+
+  UPDATES=("algorithm")
+  update_translations_submodule() { :; }
+
+  # First push is rejected (one concurrent advance), then the inter-attempt
+  # `git fetch origin <branch>` fails.
+  install_git_push_pre_hook "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "concurrent advance" 1 1
+
+  local stderr_file="$BATS_TMPDIR/finalize-fetch-fail-stderr"
+  set +e
+  finalize_translations_local "$trans_dir" "develop" "en" 2>"$stderr_file"
+  rc=$?
+  set -e
+
+  [ "$rc" -ne 0 ]
+  grep -q "failed to fetch origin/${LOCAL_BRANCH_PREFIX}en" "$stderr_file"
+  # not misreported as a concurrent-advance rejection
+  ! grep -q "force-with-lease push rejected" "$stderr_file"
 }
 
 @test "commit_and_push_translations_branch: clear error when force-with-lease unsupported" {
@@ -390,15 +452,53 @@ teardown() {
   install_git_without_force_with_lease
 
   local stderr_file="$BATS_TMPDIR/push-unsupported-stderr"
-  set +e
+  # pipefail is on in the workflows; the probe must still work when `git push -h`
+  # exits 129 (the shim mirrors that).
+  set +e -o pipefail
   commit_and_push_translations_branch "$trans_dir" "${LOCAL_BRANCH_PREFIX}en" "develop" true \
     2>"$stderr_file"
   rc=$?
-  set -e
+  set -e +o pipefail
 
   [ "$rc" -ne 0 ]
   grep -q "force-with-lease is not supported" "$stderr_file"
   grep -q "not supported by this Git installation" "$stderr_file"
+}
+
+@test "commit_and_push_translations_branch: clear error when force-if-includes unsupported" {
+  # shellcheck source=tests/helpers/git_fixtures.bash
+  source "$BATS_TEST_DIRNAME/helpers/git_fixtures.bash"
+  init_git_fixture_root
+  create_bare_remote_with_clone "translations"
+  create_remote_branch "$BARE_REMOTE" "${LOCAL_BRANCH_PREFIX}en" "$MASTER_BRANCH"
+  trans_dir="$GIT_FIXTURE_ROOT/translations-work"
+  git clone "$BARE_REMOTE" "$trans_dir"
+  set_git_bot_config "$trans_dir"
+  git -C "$trans_dir" checkout "${LOCAL_BRANCH_PREFIX}en"
+
+  # force-with-lease present, force-if-includes hidden (pre-2.30 Git).
+  install_git_without_force_if_includes
+
+  local stderr_file="$BATS_TMPDIR/push-no-includes-stderr"
+  set +e -o pipefail
+  commit_and_push_translations_branch "$trans_dir" "${LOCAL_BRANCH_PREFIX}en" "develop" true \
+    2>"$stderr_file"
+  rc=$?
+  set -e +o pipefail
+
+  [ "$rc" -ne 0 ]
+  grep -q "force-if-includes is not supported" "$stderr_file"
+  grep -q "requires Git 2.30+" "$stderr_file"
+}
+
+@test "git_push_supports_* probes are pipefail-safe with real git" {
+  # Modern git supports both flags, but `git push -h` exits 129; piped into grep
+  # that fails under pipefail even when the flag is present. The probes must
+  # still report supported.
+  set -o pipefail
+  git_push_supports_force_with_lease
+  git_push_supports_force_if_includes
+  set +o pipefail
 }
 
 @test "begin_phase and end_phase: emit group markers and track CURRENT_PHASE" {
