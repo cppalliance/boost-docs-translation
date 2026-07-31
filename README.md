@@ -203,9 +203,10 @@ only in the local trigger scripts, not across client and workflow contexts.
 
 | Secret          | Used by             | Description                                                                                                                 |
 | --------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `SYNC_TOKEN`    | all workflows       | PAT with **`repo`** scope; **`add-submodules`** also needs permission to create org repositories when creating new mirrors. |
+| `SYNC_TOKEN`    | `add-submodules`, `start-translation`, `sync-translation` | PAT with **`repo`** scope; **`add-submodules`** also needs permission to create org repositories when creating new mirrors. |
 | `WEBLATE_URL`   | `start-translation` | Base URL of the Weblate instance (the workflow appends **`WEBLATE_ENDPOINT_PATH`**).                                |
 | `WEBLATE_TOKEN` | `start-translation` | API token for that endpoint.                                                                                                |
+| `SLACK_WEBHOOK_URL` | `sync-translation`, `heartbeat` | Slack incoming webhook URL for failure and stale-heartbeat alerts. |
 
 ## Repository variables
 

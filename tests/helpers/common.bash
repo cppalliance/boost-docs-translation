@@ -41,6 +41,14 @@ load_submodule_ops() {
   source "$ASSETS_DIR/submodule_ops.sh"
 }
 
+load_notify() {
+  load_env
+  export GITHUB_RUN_ID="${GITHUB_RUN_ID:-12345}"
+  set -euo pipefail
+  # shellcheck source=/dev/null
+  source "$ASSETS_DIR/notify.sh"
+}
+
 # Run a function and capture its exit code (works under set -e in callers).
 run_fn() {
   local errexit_was_on=0

@@ -33,7 +33,7 @@ flowchart TD
 
 | Step | When | Workflow | Trigger | Script / client |
 | ---- | ---- | -------- | ------- | ----------------- |
-| 0 | Always first | — | — | GitHub secrets/vars: `SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, `LANG_CODES`, optional `SUBMODULES_ORG` |
+| 0 | Always first | — | — | GitHub secrets/vars: `SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, `SLACK_WEBHOOK_URL`, `LANG_CODES`, optional `SUBMODULES_ORG` |
 | 1 | Optional | — | — | `cp .env.example .env` → `GH_TOKEN` |
 | 2 | Greenfield / new libs | `add-submodules.yml` | `event_type: add-submodules` | `scripts/trigger-add-submodules.sh` |
 | 3 | After mirrors exist | `start-translation.yml` | `event_type: start-translation` | `scripts/trigger-start-translation.sh` |
@@ -55,12 +55,15 @@ Configure these on the translations repository **before** dispatching any workfl
 | Secret   | `SYNC_TOKEN`     | [README § Required secrets](../README.md#required-secrets) |
 | Secret   | `WEBLATE_URL`    | [README § Required secrets](../README.md#required-secrets) |
 | Secret   | `WEBLATE_TOKEN`  | [README § Required secrets](../README.md#required-secrets) |
+| Secret   | `SLACK_WEBHOOK_URL` | [README § Required secrets](../README.md#required-secrets) — Slack incoming webhook for `sync-translation` failure and `heartbeat` stale-sync alerts |
 | Variable | `LANG_CODES`     | [README § Repository variables](../README.md#repository-variables) |
 | Variable | `SUBMODULES_ORG` | [README § Repository variables](../README.md#repository-variables) |
 
-`SYNC_TOKEN`, `WEBLATE_URL`, and `WEBLATE_TOKEN` are required secrets;
+`SYNC_TOKEN`, `WEBLATE_URL`, `WEBLATE_TOKEN`, and `SLACK_WEBHOOK_URL` are required secrets;
 `LANG_CODES` and optional `SUBMODULES_ORG` are repository variables. See the
-linked README sections for scope, format, and which workflows consume each value.
+linked README sections for scope and format. **`sync-translation`** requires
+**`SYNC_TOKEN`** for `discover` and `sync-local`; its `notify-failure` job requires
+**`SLACK_WEBHOOK_URL`**.
 
 ---
 
@@ -273,8 +276,8 @@ For each remote **`${LOCAL_BRANCH_PREFIX}*`** branch in the super-repo: checkout
 with submodules, set each submodule's tracking branch to that name, run
 `git submodule update --remote`, commit if pointers changed, and force-push.
 
-Requires secret **`SYNC_TOKEN`** only. Relies on **`.gitmodules`** URLs established
-by steps 2–3.
+Requires secrets **`SYNC_TOKEN`** (`discover`, `sync-local`) and **`SLACK_WEBHOOK_URL`**
+(`notify-failure`). Relies on **`.gitmodules`** URLs established by steps 2–3.
 
 ### Verify
 

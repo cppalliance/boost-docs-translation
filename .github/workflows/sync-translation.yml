@@ -11,8 +11,10 @@
 # Manual trigger: POST /repos/{owner}/{repo}/dispatches
 #   Body: {"event_type": "sync-translation"}
 #
-# Required secret: SYNC_TOKEN — PAT with repo push to this repository.
-#   Submodule remotes in .gitmodules point at per-library org (set when running add-submodules / start-translation with SUBMODULES_ORG).
+# Required secrets:
+#   SYNC_TOKEN — PAT with repo push to this repository.
+#     Submodule remotes in .gitmodules point at per-library org (set when running add-submodules / start-translation with SUBMODULES_ORG).
+#   SLACK_WEBHOOK_URL — Slack incoming webhook for failure alerts (notify-failure job).
 
 name: Sync translation
 
@@ -148,3 +150,32 @@ jobs:
           end_phase
 
           echo "Done." >&2
+
+  notify-failure:
+    needs: [discover, sync-local]
+    if: >-
+      always() &&
+      (needs.discover.result == 'failure' || needs.sync-local.result == 'failure')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository (master)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Notify Slack on failure
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # shellcheck source=assets/env.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/env.sh"
+          # shellcheck source=assets/notify.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/assets/notify.sh"
+
+          notify_sync_translation_failure

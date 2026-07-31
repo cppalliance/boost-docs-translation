@@ -22,6 +22,9 @@ are a separate namespace — see [README](README.md#releases) and
 - Lint/CI schema checks via pinned `check-jsonschema` (metaschema + fixture
   validation); bats validates captured Weblate request bodies against the schema
   and asserts success response fields.
+- Slack failure notifications for `sync-translation` (via `notify-failure` job)
+  and stale-sync alerts for `heartbeat` (shared `notify.sh` + `SLACK_WEBHOOK_URL`
+  secret).
 
 ### Changed
 

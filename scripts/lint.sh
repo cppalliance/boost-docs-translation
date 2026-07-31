@@ -169,6 +169,7 @@ echo "lint: actionlint ${ACTIONLINT_VERSION} ($("$ACTIONLINT_BIN" -version | hea
 "$SHELLCHECK_BIN" -x \
   .github/workflows/assets/env.sh \
   .github/workflows/assets/lib.sh \
+  .github/workflows/assets/notify.sh \
   .github/workflows/assets/translation.sh \
   .github/workflows/assets/add_submodules.sh \
   .github/workflows/assets/submodule_ops.sh \

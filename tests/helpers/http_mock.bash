@@ -181,6 +181,44 @@ restore_curl_stub() {
   unset CURL_WRAPPER_DIR REAL_CURL _CURL_ORIG_PATH MOCK_CURL_TIMEOUT MOCK_CURL_EXIT
 }
 
+install_slack_curl_stub() {
+  _init_curl_wrapper_dir
+  MOCK_SLACK_REQUEST_LOG="$(mktemp)"
+  export MOCK_SLACK_REQUEST_LOG
+  {
+    echo '#!/usr/bin/env bash'
+    _curl_stub_preamble
+    cat <<'EOF'
+if [[ -n "${SLACK_WEBHOOK_URL:-}" && " $* " == *" ${SLACK_WEBHOOK_URL} "* ]]; then
+  body=""
+  prev=""
+  for arg in "$@"; do
+    if [[ "$prev" == "--data" || "$prev" == "-d" ]]; then
+      body="$arg"
+    fi
+    prev="$arg"
+  done
+  {
+    echo "URL=$SLACK_WEBHOOK_URL"
+    echo "BODY_START"
+    printf '%s' "$body"
+    echo
+    echo "BODY_END"
+  } >"${MOCK_SLACK_REQUEST_LOG}"
+  exit 0
+fi
+exec "$REAL_CURL" "$@"
+EOF
+  } >"$CURL_WRAPPER_DIR/curl"
+  _activate_curl_wrapper
+}
+
+restore_slack_curl_stub() {
+  [[ -n "${MOCK_SLACK_REQUEST_LOG:-}" && -f "$MOCK_SLACK_REQUEST_LOG" ]] && rm -f "$MOCK_SLACK_REQUEST_LOG"
+  unset MOCK_SLACK_REQUEST_LOG
+  restore_curl_stub
+}
+
 # Intercept GitHub repository_dispatch POST (no real network).
 install_dispatch_curl_stub() {
   _init_curl_wrapper_dir
