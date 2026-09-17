@@ -11,6 +11,19 @@ are a separate namespace — see [README](README.md#releases) and
 
 ## [Unreleased]
 
+### Fixed
+
+- **`heartbeat.yml`** no longer treats the first row of `gh run list
+  --event schedule --status success --limit 1` as the latest successful
+  scheduled sync. Those filters use GitHub's search index, whose first page
+  is not reliably newest-first, which produced false stale-heartbeat alerts
+  while daily **`sync-translation`** was still succeeding. The workflow now
+  lists unfiltered runs until they cover **`HEARTBEAT_MAX_AGE_HOURS`**, then
+  **`latest_successful_scheduled_created_at`** selects the max `createdAt`
+  among successful scheduled runs. Hitting **`HEARTBEAT_RUN_LIST_MAX`** before
+  that window is covered fails the check instead of treating a truncated list
+  as a missed run.
+
 ## [1.1.0] - 2026-07-31
 
 ### Added

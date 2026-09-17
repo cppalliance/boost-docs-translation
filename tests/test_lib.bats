@@ -685,3 +685,92 @@ teardown() {
 @test "heartbeat_run_is_stale: at the threshold boundary is still fresh (strict older-than)" {
   ! heartbeat_run_is_stale 100000 200000 100000
 }
+
+@test "latest_successful_scheduled_created_at: newest createdAt when rows are out of order" {
+  local json got
+  json='[
+    {"createdAt":"2026-09-13T00:46:09Z","event":"schedule","conclusion":"success"},
+    {"createdAt":"2026-09-17T00:40:56Z","event":"schedule","conclusion":"success"},
+    {"createdAt":"2026-09-16T00:41:03Z","event":"schedule","conclusion":"success"}
+  ]'
+  got="$(printf '%s\n' "$json" | latest_successful_scheduled_created_at)"
+  [ "$got" = "2026-09-17T00:40:56Z" ]
+}
+
+@test "latest_successful_scheduled_created_at: ignores dispatch and non-success rows" {
+  local json got
+  json='[
+    {"createdAt":"2026-09-13T00:46:09Z","event":"schedule","conclusion":"success"},
+    {"createdAt":"2026-09-18T00:00:00Z","event":"repository_dispatch","conclusion":"success"},
+    {"createdAt":"2026-09-18T01:00:00Z","event":"schedule","conclusion":"failure"},
+    {"createdAt":"2026-09-17T00:40:56Z","event":"schedule","conclusion":"success"}
+  ]'
+  got="$(printf '%s\n' "$json" | latest_successful_scheduled_created_at)"
+  [ "$got" = "2026-09-17T00:40:56Z" ]
+}
+
+@test "latest_successful_scheduled_created_at: empty array emits nothing" {
+  local got
+  got="$(printf '%s\n' '[]' | latest_successful_scheduled_created_at)"
+  [ -z "$got" ]
+}
+
+@test "runs_cover_heartbeat_window: empty array does not cover" {
+  ! runs_cover_heartbeat_window '[]' 200000 100000
+}
+
+@test "runs_cover_heartbeat_window: oldest run still inside the window does not cover" {
+  local json now=2000000 max_age=1000000 fresh
+  fresh="$(date -u -d @$((now - 10)) +%Y-%m-%dT%H:%M:%SZ)"
+  json="$(printf '{"createdAt":"%s","event":"schedule","conclusion":"success"}\n' "$fresh" | jq -s '.')"
+  ! runs_cover_heartbeat_window "$json" "$now" "$max_age"
+}
+
+@test "runs_cover_heartbeat_window: oldest run at the window boundary covers" {
+  local json now=2000000 max_age=1000000 oldest
+  oldest="$(date -u -d @$((now - max_age)) +%Y-%m-%dT%H:%M:%SZ)"
+  json="$(printf '{"createdAt":"%s","event":"schedule","conclusion":"success"}\n' "$oldest" | jq -s '.')"
+  runs_cover_heartbeat_window "$json" "$now" "$max_age"
+}
+
+@test "list_workflow_runs_covering_window: keeps fetching until the window is covered" {
+  # shellcheck source=tests/helpers/mock_gh.bash
+  source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"
+  install_mock_gh
+  local now=2000000 max_age=1000000 i fresh old json got
+  fresh="$(date -u -d @$((now - 10)) +%Y-%m-%dT%H:%M:%SZ)"
+  old="$(date -u -d @$((now - max_age - 1)) +%Y-%m-%dT%H:%M:%SZ)"
+  json='['
+  for i in 1 2 3; do
+    json+="$(printf '{"createdAt":"%s","event":"repository_dispatch","conclusion":"success"}' "$fresh")"
+    json+=','
+  done
+  json+="$(printf '{"createdAt":"%s","event":"schedule","conclusion":"success"}' "$old")"
+  json+=']'
+  export MOCK_RUN_LIST_JSON="$json"
+
+  got="$(list_workflow_runs_covering_window testorg/boost-docs-translation sync-translation.yml "$now" "$max_age" 2 10)"
+  restore_mock_gh
+  [ "$(jq 'length' <<<"$got")" -eq 4 ]
+  [ "$(printf '%s\n' "$got" | latest_successful_scheduled_created_at)" = "$old" ]
+}
+
+@test "list_workflow_runs_covering_window: fails when max limit is hit before the window is covered" {
+  # shellcheck source=tests/helpers/mock_gh.bash
+  source "$BATS_TEST_DIRNAME/helpers/mock_gh.bash"
+  install_mock_gh
+  local now=2000000 max_age=1000000 i fresh json
+  fresh="$(date -u -d @$((now - 10)) +%Y-%m-%dT%H:%M:%SZ)"
+  json='['
+  for i in 1 2 3 4; do
+    json+="$(printf '{"createdAt":"%s","event":"repository_dispatch","conclusion":"success"}' "$fresh")"
+    [[ "$i" -lt 4 ]] && json+=','
+  done
+  json+=']'
+  export MOCK_RUN_LIST_JSON="$json"
+
+  run list_workflow_runs_covering_window testorg/boost-docs-translation sync-translation.yml "$now" "$max_age" 2 2
+  restore_mock_gh
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"HEARTBEAT_RUN_LIST_MAX"* ]]
+}
